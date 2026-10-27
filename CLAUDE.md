@@ -89,15 +89,23 @@ Agents live in `.claude/agents/`, commands in `.claude/commands/`.
 
 ## Commands
 
+Run from the repo root unless the command starts with `cd`.
+
 | Task                | Command |
 |---------------------|---------|
 | Gate (deterministic)| `bash scripts/gate.sh` |
-| Start infra         | TBD     |
-| Run backend         | TBD     |
-| Backend tests       | TBD     |
-| Run frontend        | TBD     |
-| Frontend tests      | TBD     |
-| E2E tests           | TBD     |
+| Start infra         | `docker compose -f infra/docker/docker-compose.yml up -d --wait` |
+| Stop infra          | `docker compose -f infra/docker/docker-compose.yml down` (add `-v` to wipe data) |
+| Run backend         | `cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local` |
+| Backend unit tests  | `cd backend && ./mvnw test` |
+| Backend all tests   | `cd backend && ./mvnw verify` (unit + Testcontainers `*IT`, needs Docker) |
+| Backend format      | `cd backend && ./mvnw spotless:apply` |
+| Generate API types  | `cd frontend && npm run gen:api` (after editing `docs/api/openapi.yaml`) |
+| Run frontend        | `cd frontend && npm run dev` (http://localhost:5173, proxies `/api` to :8080) |
+| Frontend lint       | `cd frontend && npm run lint && npm run typecheck` |
+| Frontend tests      | `cd frontend && npm test` |
+| Frontend build      | `cd frontend && npm run build` |
+| E2E tests           | `cd frontend && npx playwright install chromium && npm run e2e` |
 | Seed data           | TBD     |
 | Load test (k6)      | TBD     |
 
