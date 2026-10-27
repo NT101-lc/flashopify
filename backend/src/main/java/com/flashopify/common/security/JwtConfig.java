@@ -49,6 +49,12 @@ public class JwtConfig {
     return decoder(props, TYPE_ACCESS);
   }
 
+  /** Used by the refresh/logout flow only; access tokens (typ=access) are rejected. */
+  @Bean
+  public JwtDecoder refreshTokenDecoder(JwtProperties props) {
+    return decoder(props, TYPE_REFRESH);
+  }
+
   @Bean
   public JwtAuthenticationConverter jwtAuthenticationConverter() {
     JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();

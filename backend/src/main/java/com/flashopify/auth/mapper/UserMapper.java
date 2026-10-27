@@ -26,4 +26,6 @@ public interface UserMapper {
       @Param("maxAttempts") int maxAttempts);
 
   int resetLoginFailures(@Param("id") long id);
+
+  int updatePassword(@Param("id") long id, @Param("passwordHash") String passwordHash);
 }

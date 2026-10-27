@@ -225,4 +225,81 @@ class AuthServiceImplTest {
     assertThat(response.user().id()).isEqualTo(7L);
     verify(userMapper, never()).resetLoginFailures(anyLong());
   }
+
+  @Test
+  void refreshReturnsNewTokensForRotatedSession() {
+    User u = user();
+    when(tokenService.refresh("old"))
+        .thenReturn(new RefreshedSession(u, new TokenPair("a2", "r2", 900)));
+
+    TokenResponse response = service.refresh("old");
+
+    assertThat(response.accessToken()).isEqualTo("a2");
+    assertThat(response.refreshToken()).isEqualTo("r2");
+    assertThat(response.user().id()).isEqualTo(7L);
+  }
+
+  @Test
+  void refreshPropagatesInvalidToken() {
+    when(tokenService.refresh("bad"))
+        .thenThrow(new BusinessException(ErrorCode.INVALID_TOKEN, "bad"));
+
+    assertThatThrownBy(() -> service.refresh("bad"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_TOKEN));
+  }
+
+  @Test
+  void logoutRevokesTokenForCaller() {
+    service.logout(7L, "refresh");
+
+    verify(tokenService).revoke(7L, "refresh");
+  }
+
+  @Test
+  void logoutWithOtherUsersTokenIs401AndRevokesNothingElse() {
+    doThrow(new BusinessException(ErrorCode.INVALID_TOKEN, "bad"))
+        .when(tokenService)
+        .revoke(7L, "foreign");
+
+    assertThatThrownBy(() -> service.logout(7L, "foreign"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_TOKEN));
+    verify(tokenService, never()).revokeAll(anyLong());
+  }
+
+  @Test
+  void changePasswordWrongCurrentIs401AndRevokesNothing() {
+    when(userMapper.findById(7L)).thenReturn(user());
+    when(passwordEncoder.matches("wrong", "stored-hash")).thenReturn(false);
+
+    assertThatThrownBy(() -> service.changePassword(7L, "wrong", "N3w!passw0rd"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_CREDENTIALS));
+    verify(userMapper, never()).updatePassword(anyLong(), anyString());
+    verify(tokenService, never()).revokeAll(anyLong());
+  }
+
+  @Test
+  void changePasswordUnknownUserIs401() {
+    assertThatThrownBy(() -> service.changePassword(7L, "x", "N3w!passw0rd"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e -> assertThat(e.getCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
+  }
+
+  @Test
+  void changePasswordSuccessUpdatesHashAndRevokesAllSessions() {
+    when(userMapper.findById(7L)).thenReturn(user());
+    when(passwordEncoder.matches("S3cure!pass", "stored-hash")).thenReturn(true);
+    when(passwordEncoder.encode("N3w!passw0rd")).thenReturn("new-hash");
+
+    service.changePassword(7L, "S3cure!pass", "N3w!passw0rd");
+
+    verify(userMapper).updatePassword(7L, "new-hash");
+    verify(tokenService).revokeAll(7L);
+  }
 }

@@ -6,12 +6,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashopify.auth.domain.Role;
 import com.flashopify.auth.domain.User;
+import com.flashopify.auth.mapper.UserMapper;
+import com.flashopify.auth.service.RefreshTokenStore;
 import com.flashopify.auth.service.TokenServiceImpl;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,7 +38,12 @@ class JsonErrorWriterTest {
 
   private String accessToken(Instant issuedAt, JwtProperties signWith) {
     return new TokenServiceImpl(
-            config.jwtEncoder(signWith), signWith, Clock.fixed(issuedAt, ZoneOffset.UTC))
+            config.jwtEncoder(signWith),
+            config.refreshTokenDecoder(signWith),
+            signWith,
+            Clock.fixed(issuedAt, ZoneOffset.UTC),
+            Mockito.mock(RefreshTokenStore.class),
+            Mockito.mock(UserMapper.class))
         .issue(User.builder().id(1L).role(Role.CUSTOMER).build())
         .accessToken();
   }

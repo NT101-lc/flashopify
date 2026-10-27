@@ -60,10 +60,10 @@ Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/
 ### FLS-006 · Refresh token, logout, đổi mật khẩu
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** SEC-02, SEC-03, ADR-0007
 Refresh token 7 ngày lưu Redis, rotate mỗi lần dùng, phát hiện reuse; `POST /auth/refresh`, `POST /auth/logout`, `PUT /me/password`.
-- [ ] Refresh token cũ dùng lại → 401 và thu hồi mọi phiên của user
-- [ ] Logout xoá token khỏi Redis
-- [ ] Đổi mật khẩu thu hồi toàn bộ refresh token
-- [ ] Integration test với Testcontainers Redis
+- [x] Refresh token cũ dùng lại → 401 và thu hồi mọi phiên của user
+- [x] Logout xoá token khỏi Redis
+- [x] Đổi mật khẩu thu hồi toàn bộ refresh token
+- [x] Integration test với Testcontainers Redis
 
 ### FLS-007 · Phân quyền + hồ sơ + địa chỉ giao hàng
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-005 · **Liên kết:** HFR-01, SEC-04, SEC-07, OR-13

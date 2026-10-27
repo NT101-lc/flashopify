@@ -31,4 +31,8 @@
   <update id="resetLoginFailures">
     UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = #{id}
   </update>
+
+  <update id="updatePassword">
+    UPDATE users SET password_hash = #{passwordHash} WHERE id = #{id}
+  </update>
 </mapper>

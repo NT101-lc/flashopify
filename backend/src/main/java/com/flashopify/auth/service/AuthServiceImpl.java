@@ -95,7 +95,34 @@ public class AuthServiceImpl implements AuthService {
     if (user.getFailedLoginCount() > 0 || user.getLockedUntil() != null) {
       userMapper.resetLoginFailures(user.getId());
     }
-    TokenPair tokens = tokenService.issue(user);
+    return toResponse(user, tokenService.issue(user));
+  }
+
+  @Override
+  public TokenResponse refresh(String refreshToken) {
+    RefreshedSession session = tokenService.refresh(refreshToken);
+    return toResponse(session.user(), session.tokens());
+  }
+
+  @Override
+  public void logout(long userId, String refreshToken) {
+    tokenService.revoke(userId, refreshToken);
+  }
+
+  @Override
+  public void changePassword(long userId, String currentPassword, String newPassword) {
+    User user = userMapper.findById(userId);
+    if (user == null || user.getStatus() == UserStatus.DELETED) {
+      throw new BusinessException(ErrorCode.UNAUTHORIZED, "Authentication required");
+    }
+    if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Current password is wrong");
+    }
+    userMapper.updatePassword(userId, passwordEncoder.encode(newPassword));
+    tokenService.revokeAll(userId);
+  }
+
+  private static TokenResponse toResponse(User user, TokenPair tokens) {
     return new TokenResponse(
         tokens.accessToken(),
         tokens.refreshToken(),
