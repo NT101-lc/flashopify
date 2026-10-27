@@ -6,9 +6,9 @@ app:
       username: ${MYSQL_USER:flashopify}
       password: ${MYSQL_PASSWORD:flashopify}
     ai:
-      url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:flashopify_ai}
-      username: ${POSTGRES_USER:flashopify}
-      password: ${POSTGRES_PASSWORD:flashopify}
+      url: jdbc:postgresql://${PGVECTOR_HOST:localhost}:${PGVECTOR_PORT:5432}/${PGVECTOR_DATABASE:flashopify_ai}
+      username: ${PGVECTOR_USER:flashopify}
+      password: ${PGVECTOR_PASSWORD:flashopify}
 
 spring:
   data:

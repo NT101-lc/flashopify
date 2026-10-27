@@ -28,11 +28,11 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-flashopify_ai}
-      POSTGRES_USER: ${POSTGRES_USER:-flashopify}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flashopify}
+      POSTGRES_DB: ${PGVECTOR_DATABASE:-flashopify_ai}
+      POSTGRES_USER: ${PGVECTOR_USER:-flashopify}
+      POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:-flashopify}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${PGVECTOR_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
