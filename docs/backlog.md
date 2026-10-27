@@ -21,32 +21,32 @@ Label: `backend` · `frontend` · `infra` · `docs` · `test`. Ước lượng: 
 ### FLS-001 · Docker Compose cho môi trường local
 **Label:** infra · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** SRS 2.3, OR-04, 6.2
 Một lệnh `docker compose up` chạy đủ hạ tầng local: MySQL 8, Redis 7, Kafka (KRaft), MinIO, PostgreSQL 16 + pgvector, Mailhog. Có healthcheck cho từng service.
-- [ ] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh
+- [x] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh _(file thực tế: `docker-compose.yml`, thêm kafka-ui)_
 - [ ] MinIO tự tạo bucket `flashopify`; Postgres bật extension `vector`
-- [ ] `.env.example` bổ sung biến còn thiếu; không commit `.env`
+- [x] `.env.example` bổ sung biến còn thiếu; không commit `.env` _(`infra/docker/.env.example`)_
 - [ ] README ghi lệnh khởi động/dừng/xoá volume
 
 ### FLS-002 · Skeleton Spring Boot modular monolith
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001 · **Liên kết:** HNFR-03, HNFR-05, OR-09, ADR-0001
 Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/service/mapper/domain/dto`), profile `local/test/prod`, Actuator, springdoc phục vụ `docs/api/openapi.yaml`.
-- [ ] `./mvnw verify` chạy xanh; app khởi động với profile `local`
-- [ ] `/actuator/health` trả UP (MySQL, Redis)
+- [x] `./mvnw verify` chạy xanh; app khởi động với profile `local`
+- [x] `/actuator/health` trả UP (MySQL, Redis)
 - [ ] ArchUnit test: module không truy cập `mapper` của module khác
 - [ ] Swagger UI hiển thị spec
 
 ### FLS-003 · Flyway baseline + cấu hình MyBatis
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-04, ADR-0004, ADR-0005
 Đưa `V1__init.sql` (MySQL) và `V1__ai_init.sql` (Postgres) vào `db/migration`, cấu hình 2 datasource và MyBatis (camelCase mapping, type handler cho enum).
-- [ ] App khởi động tự migrate cả 2 DB
-- [ ] Integration test Testcontainers xác nhận đủ bảng
-- [ ] Datasource Postgres tách riêng, chỉ module `ai` dùng
+- [x] App khởi động tự migrate cả 2 DB
+- [x] Integration test Testcontainers xác nhận đủ bảng
+- [x] Datasource Postgres tách riêng, chỉ module `ai` dùng
 
 ### FLS-004 · Xử lý lỗi chung + traceId
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-08, SRS 6.4, SEC-10, SEC-11
 `@RestControllerAdvice` trả `ErrorResponse { code, message, traceId, timestamp, fieldErrors }`, enum `ErrorCode` khớp OpenAPI; filter sinh `X-Trace-Id` và đưa vào MDC.
-- [ ] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
-- [ ] `BusinessException(ErrorCode)` map đúng HTTP status
-- [ ] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
+- [x] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
+- [x] `BusinessException(ErrorCode)` map đúng HTTP status
+- [x] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
 - [ ] Unit test cho advice
 
 ### FLS-005 · Đăng ký + đăng nhập JWT + khoá tài khoản
@@ -115,17 +115,17 @@ Sinh 1 admin (thông tin từ biến môi trường) và 1.000 customer có đ�
 ### FLS-013 · Scaffold frontend React + codegen OpenAPI
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** OR-09, HFR-10, SRS 2.3
 Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query, ESLint/Prettier, cấu trúc `src/features/*`, sinh type + client từ `openapi.yaml`.
-- [ ] `npm run gen:api` sinh type, không viết tay DTO
+- [x] `npm run gen:api` sinh type, không viết tay DTO
 - [ ] API client có interceptor đính token và parse `ErrorResponse`
-- [ ] `npm run lint`, `npm test` (Vitest) chạy xanh
-- [ ] Theme màu/logo riêng, không dùng asset Shopify
+- [x] `npm run lint`, `npm test` (Vitest) chạy xanh
+- [x] Theme màu/logo riêng, không dùng asset Shopify
 
 ### FLS-014 · CI GitHub Actions
 **Label:** infra · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002, FLS-013 · **Liên kết:** HNFR-05, OR-10
 Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, Redocly lint OpenAPI, báo cáo coverage.
-- [ ] Chạy trên PR và push `main`
+- [x] Chạy trên PR và push `main`
 - [ ] Fail nếu coverage service < 70%
-- [ ] Cache Maven/npm
+- [x] Cache Maven/npm
 
 ---
 
