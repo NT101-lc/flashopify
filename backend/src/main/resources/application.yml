@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: flashopify
+  profiles:
+    default: local
+  # Both Flyway instances are defined in common.config.FlywayConfig.
+  flyway:
+    enabled: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+# MySQL = primary store (MyBatis); PostgreSQL + pgvector = ai module only.
+app:
+  datasource:
+    mysql:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        pool-name: mysql-pool
+    ai:
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: ai-pool
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-statement-timeout: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  pattern:
+    level: "%5p [%X{traceId:-}]"

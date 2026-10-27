@@ -1,0 +1,14 @@
+# Profile for automated tests. Connection URLs are supplied by Testcontainers via
+# @DynamicPropertySource. Redis/Kafka clients connect lazily, so tests that do not use them need
+# no broker; the Redis health check is off for the same reason.
+management:
+  health:
+    redis:
+      enabled: false
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.flywaydb: info

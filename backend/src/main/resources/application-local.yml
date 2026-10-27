@@ -1,0 +1,24 @@
+# Local development against infra/docker/docker-compose.yml. Defaults match infra/docker/.env.example.
+app:
+  datasource:
+    mysql:
+      url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:flashopify}?connectionTimeZone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      username: ${MYSQL_USER:flashopify}
+      password: ${MYSQL_PASSWORD:flashopify}
+    ai:
+      url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:flashopify_ai}
+      username: ${POSTGRES_USER:flashopify}
+      password: ${POSTGRES_PASSWORD:flashopify}
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+management:
+  endpoint:
+    health:
+      show-details: always
