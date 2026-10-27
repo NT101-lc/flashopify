@@ -1,0 +1,266 @@
+Project flashopify {
+  database_type: 'MySQL'
+  Note: 'Flashopify - E-commerce flash-sale. MySQL 8 la nguon su that. Redis giu kho flash-sale, cache, rate limit. product_embeddings nam o PostgreSQL + pgvector.'
+}
+
+// ===== AUTH & USER =====
+
+Table users {
+  id bigint [pk, increment]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  full_name varchar(100) [not null]
+  phone varchar(20)
+  role enum('CUSTOMER','ADMIN') [not null, default: 'CUSTOMER']
+  status enum('ACTIVE','LOCKED','DELETED') [not null, default: 'ACTIVE']
+  failed_login_count int [not null, default: 0]
+  locked_until datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table addresses {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  receiver_name varchar(100) [not null]
+  phone varchar(20) [not null]
+  address_line varchar(255) [not null]
+  ward varchar(100)
+  district varchar(100)
+  city varchar(100) [not null]
+  is_default boolean [not null, default: false]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    user_id
+  }
+}
+
+// ===== CATALOG =====
+
+Table categories {
+  id bigint [pk, increment]
+  parent_id bigint [ref: > categories.id]
+  slug varchar(100) [not null, unique]
+  name varchar(100) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table products {
+  id bigint [pk, increment]
+  category_id bigint [not null, ref: > categories.id]
+  source_id int [unique, note: 'id ben DummyJSON, de seed idempotent']
+  sku varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  slug varchar(255) [not null, unique]
+  description text
+  brand varchar(100)
+  price decimal(15,2) [not null]
+  rating decimal(3,2)
+  thumbnail_url varchar(500)
+  status enum('ACTIVE','INACTIVE','DELETED') [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (category_id, status)
+    brand
+    price
+  }
+}
+
+Table product_images {
+  id bigint [pk, increment]
+  product_id bigint [not null, ref: > products.id]
+  url varchar(500) [not null, note: 'URL tren MinIO/S3, phuc vu qua CDN']
+  sort_order int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (product_id, sort_order)
+  }
+}
+
+Table inventory {
+  product_id bigint [pk, ref: - products.id]
+  quantity int [not null, note: 'so luong ban duoc']
+  reserved int [not null, default: 0, note: 'giu cho flash-sale va don PENDING']
+  version int [not null, default: 0, note: 'optimistic lock']
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+// ===== CART =====
+
+Table carts {
+  id bigint [pk, increment]
+  user_id bigint [not null, unique, ref: - users.id]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table cart_items {
+  id bigint [pk, increment]
+  cart_id bigint [not null, ref: > carts.id]
+  product_id bigint [not null, ref: > products.id]
+  quantity int [not null]
+  added_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (cart_id, product_id) [unique]
+  }
+}
+
+// ===== FLASH SALE =====
+
+Table flash_sale_campaigns {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  start_time datetime [not null]
+  end_time datetime [not null]
+  status enum('SCHEDULED','RUNNING','ENDED','CANCELLED') [not null, default: 'SCHEDULED']
+  created_by bigint [not null, ref: > users.id]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (status, start_time)
+  }
+}
+
+Table flash_sale_items {
+  id bigint [pk, increment]
+  campaign_id bigint [not null, ref: > flash_sale_campaigns.id]
+  product_id bigint [not null, ref: > products.id]
+  sale_price decimal(15,2) [not null]
+  total_stock int [not null]
+  sold int [not null, default: 0, note: 'dong bo tu Redis sau chien dich']
+  limit_per_user int [not null, default: 1]
+
+  indexes {
+    (campaign_id, product_id) [unique]
+  }
+
+  Note: 'Ton kho realtime o Redis: fs:stock:{id}, fs:bought:{id}'
+}
+
+// ===== ORDER & PAYMENT =====
+
+Table orders {
+  id bigint [pk, increment]
+  order_no varchar(32) [not null, unique]
+  user_id bigint [not null, ref: > users.id]
+  type enum('NORMAL','FLASH') [not null]
+  flash_sale_item_id bigint [ref: > flash_sale_items.id]
+  status enum('PENDING','PAID','COMPLETED','CANCELLED','EXPIRED') [not null, default: 'PENDING']
+  total_amount decimal(15,2) [not null]
+  shipping_name varchar(100) [not null, note: 'snapshot dia chi luc dat']
+  shipping_phone varchar(20) [not null]
+  shipping_address varchar(500) [not null]
+  idempotency_key varchar(64) [not null]
+  expired_at datetime [not null]
+  paid_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (user_id, idempotency_key) [unique]
+    (user_id, created_at)
+    (status, expired_at) [note: 'job huy don qua han']
+  }
+}
+
+Table order_items {
+  id bigint [pk, increment]
+  order_id bigint [not null, ref: > orders.id]
+  product_id bigint [not null, ref: > products.id]
+  product_name varchar(255) [not null, note: 'snapshot']
+  thumbnail_url varchar(500)
+  quantity int [not null]
+  unit_price decimal(15,2) [not null]
+
+  indexes {
+    order_id
+  }
+}
+
+Table payments {
+  id bigint [pk, increment]
+  order_id bigint [not null, ref: > orders.id]
+  provider_txn_id varchar(64) [unique, note: 'chong xu ly callback trung']
+  amount decimal(15,2) [not null]
+  status enum('INITIATED','SUCCESS','FAILED') [not null, default: 'INITIATED']
+  raw_callback json
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    order_id
+  }
+}
+
+// ===== EVENTS =====
+
+Table outbox_events {
+  id bigint [pk, increment]
+  event_id char(36) [not null, unique]
+  aggregate_type varchar(50) [not null]
+  aggregate_id varchar(64) [not null]
+  event_type varchar(100) [not null, note: 'OrderCreated, OrderPaid, OrderCancelled']
+  payload json [not null]
+  status enum('NEW','PUBLISHED','FAILED') [not null, default: 'NEW']
+  retry_count int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  published_at datetime
+
+  indexes {
+    (status, created_at)
+  }
+}
+
+Table processed_events {
+  event_id char(36) [not null, note: 'consumer idempotent']
+  consumer varchar(100) [not null]
+  processed_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (event_id, consumer) [pk]
+  }
+}
+
+// ===== AI (PostgreSQL + pgvector, DB rieng) =====
+
+Table product_embeddings {
+  product_id bigint [pk, note: 'tham chieu logic toi products.id (khac DB, khong co FK)']
+  content text [not null]
+  embedding "vector(1536)" [not null]
+  updated_at timestamp [not null]
+}
+
+TableGroup auth {
+  users
+  addresses
+}
+
+TableGroup catalog {
+  categories
+  products
+  product_images
+  inventory
+}
+
+TableGroup shopping {
+  carts
+  cart_items
+  orders
+  order_items
+  payments
+}
+
+TableGroup flash_sale {
+  flash_sale_campaigns
+  flash_sale_items
+}
+
+TableGroup infra {
+  outbox_events
+  processed_events
+  product_embeddings
+}
