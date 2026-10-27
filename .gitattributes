@@ -1,0 +1,7 @@
+# Normalise to LF so Prettier/Spotless checks and shell scripts behave the same on Windows and CI.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
