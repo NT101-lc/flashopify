@@ -1,0 +1,3986 @@
+openapi: 3.1.0
+info:
+  title: Flashopify API
+  version: 1.0.0
+  summary: E-commerce platform with flash-sale support.
+  description: |
+    REST API for the Flashopify storefront, admin and payment gateway integration.
+
+    Conventions (see docs/srs.md §6.4 and docs/conventions.md):
+    - JSON fields are camelCase; money is a decimal **string** with 2 fraction digits (e.g. `"129.99"`);
+      timestamps are ISO-8601 in UTC (e.g. `"2026-11-27T12:00:00Z"`).
+    - Every response carries an `X-Trace-Id` header; errors repeat it in `traceId`.
+    - Errors use `ErrorResponse` with a business `code` from `ErrorCode`.
+    - Paginated lists accept `page` (0-based), `size`, `sort` and return `PageResponse`.
+    - `Idempotency-Key` is required on `POST /orders` and `POST /flash-sales/{itemId}/purchase`.
+      Replaying a key returns the original result; reusing a key with a different body returns
+      409 `IDEMPOTENCY_KEY_CONFLICT`.
+
+    Access control is declared per operation with the `x-roles` extension:
+    - `PUBLIC` – no token needed (a token, if sent, may personalise the response)
+    - `CUSTOMER` – role CUSTOMER
+    - `ADMIN` – role ADMIN
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: /api/v1
+    description: Relative to the host serving the API (http://localhost:8080 when running locally).
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+    description: Registration, login, tokens, profile and shipping addresses.
+  - name: products
+    description: Public product catalog.
+  - name: categories
+    description: Public category tree.
+  - name: cart
+    description: Server-side shopping cart of the current customer.
+  - name: orders
+    description: Normal orders of the current customer.
+  - name: flash-sales
+    description: Public flash-sale listing and flash-sale purchase.
+  - name: payments
+    description: Mock payment sessions and the gateway webhook.
+  - name: ai
+    description: AI shopping assistant (RAG + tool calling).
+  - name: admin-products
+    description: Product, inventory and image management.
+  - name: admin-flash-sales
+    description: Flash-sale campaign management.
+  - name: admin-orders
+    description: Order management across all customers.
+  - name: admin-customers
+    description: Customer lookup for the admin UI.
+  - name: admin-stats
+    description: Dashboard KPIs and reports.
+
+paths:
+  # ===================== AUTH =====================
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Register a customer account
+      x-roles: [PUBLIC]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: an.nguyen@example.com
+              password: S3cure!pass
+              fullName: Nguyen Van An
+              phone: '0901234567'
+      responses:
+        '201':
+          description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              example:
+                id: 1024
+                email: an.nguyen@example.com
+                fullName: Nguyen Van An
+                phone: '0901234567'
+                role: CUSTOMER
+                createdAt: '2026-10-27T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered (`EMAIL_ALREADY_EXISTS`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: EMAIL_ALREADY_EXISTS
+                message: Email đã được sử dụng
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T08:00:00Z'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Log in with email and password
+      description: Rate-limited per IP and email. 5 consecutive failures lock the account for 15 minutes.
+      x-roles: [PUBLIC]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: an.nguyen@example.com
+              password: S3cure!pass
+      responses:
+        '200':
+          description: Tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiJ9.access
+                refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+                tokenType: Bearer
+                expiresIn: 900
+                user:
+                  id: 1024
+                  email: an.nguyen@example.com
+                  fullName: Nguyen Van An
+                  phone: '0901234567'
+                  role: CUSTOMER
+                  createdAt: '2026-10-27T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Wrong email or password (`INVALID_CREDENTIALS`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INVALID_CREDENTIALS
+                message: Email hoặc mật khẩu không đúng
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T08:00:00Z'
+        '423':
+          description: Account locked after too many failures (`ACCOUNT_LOCKED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: ACCOUNT_LOCKED
+                message: Tài khoản bị khoá đến 08:15 UTC
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T08:00:00Z'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: Exchange a refresh token for a new token pair
+      description: Refresh tokens are single-use (rotated) and stored in Redis.
+      x-roles: [PUBLIC]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+      responses:
+        '200':
+          description: New token pair.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiJ9.access2
+                refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh2
+                tokenType: Bearer
+                expiresIn: 900
+                user:
+                  id: 1024
+                  email: an.nguyen@example.com
+                  fullName: Nguyen Van An
+                  phone: '0901234567'
+                  role: CUSTOMER
+                  createdAt: '2026-10-27T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoke the given refresh token
+      x-roles: [CUSTOMER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+      responses:
+        '204':
+          description: Logged out.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMyProfile
+      summary: Get the current user's profile
+      x-roles: [CUSTOMER, ADMIN]
+      responses:
+        '200':
+          description: Current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              example:
+                id: 1024
+                email: an.nguyen@example.com
+                fullName: Nguyen Van An
+                phone: '0901234567'
+                role: CUSTOMER
+                createdAt: '2026-10-27T08:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [auth]
+      operationId: updateMyProfile
+      summary: Update the current user's profile
+      x-roles: [CUSTOMER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            example:
+              fullName: Nguyen Van An
+              phone: '0909999999'
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              example:
+                id: 1024
+                email: an.nguyen@example.com
+                fullName: Nguyen Van An
+                phone: '0909999999'
+                role: CUSTOMER
+                createdAt: '2026-10-27T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [auth]
+      operationId: deleteMyAccount
+      summary: Delete the current account
+      description: Soft-deletes the user (status DELETED), anonymises personal data and revokes all tokens. Orders and payments are retained (SRS OR-13).
+      x-roles: [CUSTOMER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+            example:
+              password: S3cure!pass
+      responses:
+        '204':
+          description: Account deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/password:
+    put:
+      tags: [auth]
+      operationId: changeMyPassword
+      summary: Change password
+      description: Revokes every refresh token of the user.
+      x-roles: [CUSTOMER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              currentPassword: S3cure!pass
+              newPassword: N3w!passw0rd
+      responses:
+        '204':
+          description: Password changed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/addresses:
+    get:
+      tags: [auth]
+      operationId: listMyAddresses
+      summary: List shipping addresses
+      x-roles: [CUSTOMER]
+      responses:
+        '200':
+          description: Addresses, default first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+              example:
+                - id: 12
+                  receiverName: Nguyen Van An
+                  phone: '0901234567'
+                  addressLine: 12 Nguyen Hue
+                  ward: Ben Nghe
+                  district: Quan 1
+                  city: Ho Chi Minh
+                  isDefault: true
+                  createdAt: '2026-10-27T08:05:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [auth]
+      operationId: createMyAddress
+      summary: Add a shipping address
+      x-roles: [CUSTOMER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+            example:
+              receiverName: Nguyen Van An
+              phone: '0901234567'
+              addressLine: 12 Nguyen Hue
+              ward: Ben Nghe
+              district: Quan 1
+              city: Ho Chi Minh
+              isDefault: true
+      responses:
+        '201':
+          description: Address created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+              example:
+                id: 12
+                receiverName: Nguyen Van An
+                phone: '0901234567'
+                addressLine: 12 Nguyen Hue
+                ward: Ben Nghe
+                district: Quan 1
+                city: Ho Chi Minh
+                isDefault: true
+                createdAt: '2026-10-27T08:05:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /me/addresses/{addressId}:
+    parameters:
+      - $ref: '#/components/parameters/AddressId'
+    put:
+      tags: [auth]
+      operationId: updateMyAddress
+      summary: Update a shipping address
+      x-roles: [CUSTOMER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+            example:
+              receiverName: Nguyen Van An
+              phone: '0901234567'
+              addressLine: 45 Le Loi
+              ward: Ben Thanh
+              district: Quan 1
+              city: Ho Chi Minh
+              isDefault: true
+      responses:
+        '200':
+          description: Updated address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+              example:
+                id: 12
+                receiverName: Nguyen Van An
+                phone: '0901234567'
+                addressLine: 45 Le Loi
+                ward: Ben Thanh
+                district: Quan 1
+                city: Ho Chi Minh
+                isDefault: true
+                createdAt: '2026-10-27T08:05:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [auth]
+      operationId: deleteMyAddress
+      summary: Delete a shipping address
+      x-roles: [CUSTOMER]
+      responses:
+        '204':
+          description: Address deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================== CATALOG =====================
+  /products:
+    get:
+      tags: [products]
+      operationId: listProducts
+      summary: Search and filter active products
+      x-roles: [PUBLIC]
+      security: []
+      parameters:
+        - name: q
+          in: query
+          description: Full-text search on name, brand and description.
+          schema:
+            type: string
+            maxLength: 100
+          example: phone
+        - name: categorySlug
+          in: query
+          schema:
+            type: string
+          example: smartphones
+        - name: brand
+          in: query
+          description: Repeatable; matches any of the given brands.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+          example: [Apple, Samsung]
+        - name: minPrice
+          in: query
+          schema:
+            $ref: '#/components/schemas/Money'
+          example: '100.00'
+        - name: maxPrice
+          in: query
+          schema:
+            $ref: '#/components/schemas/Money'
+          example: '1500.00'
+        - name: minRating
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 5
+          example: 4
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/ProductSort'
+      responses:
+        '200':
+          description: Page of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+              example:
+                items:
+                  - id: 101
+                    name: iPhone 9
+                    slug: iphone-9
+                    brand: Apple
+                    price: '549.00'
+                    rating: 4.69
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    categorySlug: smartphones
+                    inStock: true
+                    flashSale:
+                      itemId: 501
+                      salePrice: '399.00'
+                      endTime: '2026-11-27T13:00:00Z'
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /products/brands:
+    get:
+      tags: [products]
+      operationId: listBrands
+      summary: List brands for the filter sidebar
+      x-roles: [PUBLIC]
+      security: []
+      parameters:
+        - name: categorySlug
+          in: query
+          schema:
+            type: string
+          example: smartphones
+      responses:
+        '200':
+          description: Distinct brand names, alphabetical.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              example: [Apple, Huawei, Samsung]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /products/{slug}:
+    get:
+      tags: [products]
+      operationId: getProduct
+      summary: Get product detail by slug
+      description: Cached in Redis. Returns 404 for INACTIVE or DELETED products.
+      x-roles: [PUBLIC]
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          example: iphone-9
+      responses:
+        '200':
+          description: Product detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+              example:
+                id: 101
+                name: iPhone 9
+                slug: iphone-9
+                brand: Apple
+                price: '549.00'
+                rating: 4.69
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                categorySlug: smartphones
+                inStock: true
+                flashSale:
+                  itemId: 501
+                  salePrice: '399.00'
+                  endTime: '2026-11-27T13:00:00Z'
+                sku: SKU-APL-0101
+                description: An apple mobile which is nothing like apple.
+                category:
+                  id: 3
+                  slug: smartphones
+                  name: Smartphones
+                availableQuantity: 94
+                images:
+                  - id: 9001
+                    url: https://cdn.flashopify.local/products/101/1.webp
+                    sortOrder: 0
+                  - id: 9002
+                    url: https://cdn.flashopify.local/products/101/2.webp
+                    sortOrder: 1
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /categories:
+    get:
+      tags: [categories]
+      operationId: listCategories
+      summary: Get the category tree
+      x-roles: [PUBLIC]
+      security: []
+      responses:
+        '200':
+          description: Root categories with nested children.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+              example:
+                - id: 1
+                  slug: electronics
+                  name: Electronics
+                  productCount: 25
+                  children:
+                    - id: 3
+                      slug: smartphones
+                      name: Smartphones
+                      productCount: 16
+                      children: []
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  # ===================== CART =====================
+  /cart:
+    get:
+      tags: [cart]
+      operationId: getCart
+      summary: Get the current cart
+      x-roles: [CUSTOMER]
+      responses:
+        '200':
+          description: Cart (empty cart if none exists yet).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                items:
+                  - productId: 101
+                    name: iPhone 9
+                    slug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    unitPrice: '549.00'
+                    quantity: 2
+                    lineTotal: '1098.00'
+                    availableQuantity: 94
+                    addedAt: '2026-10-27T09:00:00Z'
+                totalQuantity: 2
+                subtotal: '1098.00'
+                updatedAt: '2026-10-27T09:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [cart]
+      operationId: clearCart
+      summary: Remove all items from the cart
+      x-roles: [CUSTOMER]
+      responses:
+        '204':
+          description: Cart cleared.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /cart/items:
+    post:
+      tags: [cart]
+      operationId: addCartItem
+      summary: Add a product to the cart
+      description: If the product is already in the cart the quantity is increased.
+      x-roles: [CUSTOMER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+            example:
+              productId: 101
+              quantity: 1
+      responses:
+        '200':
+          description: Updated cart.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                items:
+                  - productId: 101
+                    name: iPhone 9
+                    slug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    unitPrice: '549.00'
+                    quantity: 1
+                    lineTotal: '549.00'
+                    availableQuantity: 94
+                    addedAt: '2026-10-27T09:00:00Z'
+                totalQuantity: 1
+                subtotal: '549.00'
+                updatedAt: '2026-10-27T09:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InsufficientStock'
+
+  /cart/items/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    patch:
+      tags: [cart]
+      operationId: updateCartItem
+      summary: Set the quantity of a cart item
+      x-roles: [CUSTOMER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCartItemRequest'
+            example:
+              quantity: 3
+      responses:
+        '200':
+          description: Updated cart.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                items:
+                  - productId: 101
+                    name: iPhone 9
+                    slug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    unitPrice: '549.00'
+                    quantity: 3
+                    lineTotal: '1647.00'
+                    availableQuantity: 94
+                    addedAt: '2026-10-27T09:00:00Z'
+                totalQuantity: 3
+                subtotal: '1647.00'
+                updatedAt: '2026-10-27T09:10:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InsufficientStock'
+    delete:
+      tags: [cart]
+      operationId: removeCartItem
+      summary: Remove a product from the cart
+      x-roles: [CUSTOMER]
+      responses:
+        '204':
+          description: Item removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================== ORDERS =====================
+  /orders:
+    post:
+      tags: [orders]
+      operationId: createOrder
+      summary: Place a normal order
+      description: |
+        Creates a PENDING order, reserves inventory (optimistic lock) and removes the ordered
+        products from the cart. The order expires after 15 minutes if unpaid.
+      x-roles: [CUSTOMER]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            example:
+              addressId: 12
+              items:
+                - productId: 101
+                  quantity: 2
+              note: Giao giờ hành chính
+      responses:
+        '201':
+          description: Order created (or the original result when the Idempotency-Key is replayed).
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+              example:
+                orderNo: OD20261027000045
+                type: NORMAL
+                status: PENDING
+                totalAmount: '1098.00'
+                itemCount: 2
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-10-27T09:15:00Z'
+                expiredAt: '2026-10-27T09:30:00Z'
+                paidAt: null
+                items:
+                  - productId: 101
+                    productName: iPhone 9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    quantity: 2
+                    unitPrice: '549.00'
+                    lineTotal: '1098.00'
+                shipping:
+                  name: Nguyen Van An
+                  phone: '0901234567'
+                  address: 12 Nguyen Hue, Ben Nghe, Quan 1, Ho Chi Minh
+                flashSaleItemId: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Not enough stock (`INSUFFICIENT_STOCK`), or `IDEMPOTENCY_KEY_CONFLICT` / `REQUEST_IN_PROGRESS`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INSUFFICIENT_STOCK
+                message: Sản phẩm iPhone 9 chỉ còn 1
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T09:15:00Z'
+    get:
+      tags: [orders]
+      operationId: listMyOrders
+      summary: List the current customer's orders
+      x-roles: [CUSTOMER]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+          example: PAID
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderType'
+          example: FLASH
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/OrderSort'
+      responses:
+        '200':
+          description: Page of orders.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+              example:
+                items:
+                  - orderNo: FS20261127000123
+                    type: FLASH
+                    status: PAID
+                    totalAmount: '399.00'
+                    itemCount: 1
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    createdAt: '2026-11-27T12:00:01Z'
+                    expiredAt: '2026-11-27T12:15:01Z'
+                    paidAt: '2026-11-27T12:03:10Z'
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /orders/{orderNo}:
+    get:
+      tags: [orders]
+      operationId: getMyOrder
+      summary: Get one of the current customer's orders
+      description: |
+        For a flash-sale purchase that is still queued in Kafka, returns `status: PROCESSING`
+        with no items yet; clients poll this endpoint after `202` from the purchase API.
+        Orders of other users return 404.
+      x-roles: [CUSTOMER]
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: Order detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+              example:
+                orderNo: FS20261127000123
+                type: FLASH
+                status: PENDING
+                totalAmount: '399.00'
+                itemCount: 1
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-11-27T12:00:01Z'
+                expiredAt: '2026-11-27T12:15:01Z'
+                paidAt: null
+                items:
+                  - productId: 101
+                    productName: iPhone 9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    quantity: 1
+                    unitPrice: '399.00'
+                    lineTotal: '399.00'
+                shipping:
+                  name: Nguyen Van An
+                  phone: '0901234567'
+                  address: 12 Nguyen Hue, Ben Nghe, Quan 1, Ho Chi Minh
+                flashSaleItemId: 501
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderNo}/cancel:
+    post:
+      tags: [orders]
+      operationId: cancelMyOrder
+      summary: Cancel a PENDING order
+      description: Releases reserved stock (MySQL, and Redis for flash-sale orders).
+      x-roles: [CUSTOMER]
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: Cancelled order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummary'
+              example:
+                orderNo: OD20261027000045
+                type: NORMAL
+                status: CANCELLED
+                totalAmount: '1098.00'
+                itemCount: 2
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-10-27T09:15:00Z'
+                expiredAt: '2026-10-27T09:30:00Z'
+                paidAt: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidOrderState'
+
+  # ===================== FLASH SALES =====================
+  /flash-sales:
+    get:
+      tags: [flash-sales]
+      operationId: listFlashSales
+      summary: List running and upcoming flash-sale campaigns with their items
+      description: Remaining stock is read from Redis and may lag by a few seconds.
+      x-roles: [PUBLIC]
+      security: []
+      parameters:
+        - name: status
+          in: query
+          description: Defaults to RUNNING and SCHEDULED.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [SCHEDULED, RUNNING]
+          style: form
+          explode: true
+          example: [RUNNING]
+      responses:
+        '200':
+          description: Campaigns ordered by start time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlashSaleCampaign'
+              example:
+                - id: 7
+                  name: Black Friday 12h
+                  startTime: '2026-11-27T12:00:00Z'
+                  endTime: '2026-11-27T13:00:00Z'
+                  status: RUNNING
+                  items:
+                    - id: 501
+                      productId: 101
+                      productName: iPhone 9
+                      productSlug: iphone-9
+                      thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                      originalPrice: '549.00'
+                      salePrice: '399.00'
+                      totalStock: 100
+                      remainingStock: 37
+                      limitPerUser: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /flash-sales/{itemId}:
+    get:
+      tags: [flash-sales]
+      operationId: getFlashSaleItem
+      summary: Get a flash-sale item with its campaign window
+      description: When called with a token, `purchasedByMe` shows how many units the caller already bought.
+      x-roles: [PUBLIC]
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlashSaleItemId'
+      responses:
+        '200':
+          description: Flash-sale item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlashSaleItemDetail'
+              example:
+                id: 501
+                productId: 101
+                productName: iPhone 9
+                productSlug: iphone-9
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                originalPrice: '549.00'
+                salePrice: '399.00'
+                totalStock: 100
+                remainingStock: 37
+                limitPerUser: 1
+                purchasedByMe: 0
+                campaign:
+                  id: 7
+                  name: Black Friday 12h
+                  startTime: '2026-11-27T12:00:00Z'
+                  endTime: '2026-11-27T13:00:00Z'
+                  status: RUNNING
+                serverTime: '2026-11-27T12:20:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flash-sales/{itemId}/purchase:
+    post:
+      tags: [flash-sales]
+      operationId: purchaseFlashSaleItem
+      summary: Buy a flash-sale item
+      description: |
+        Atomic check-and-decrement in Redis (time window, per-user limit, stock), then the order
+        is created asynchronously via Kafka. Poll `GET /orders/{orderNo}` until the status leaves
+        PROCESSING. Rate-limited per user and IP.
+      x-roles: [CUSTOMER]
+      parameters:
+        - $ref: '#/components/parameters/FlashSaleItemId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlashSalePurchaseRequest'
+            example:
+              quantity: 1
+              addressId: 12
+      responses:
+        '202':
+          description: Stock reserved; order is being created.
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlashSalePurchaseResponse'
+              example:
+                orderNo: FS20261127000123
+                status: PROCESSING
+        '400':
+          description: Validation error or campaign outside its time window (`CAMPAIGN_NOT_ACTIVE`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: CAMPAIGN_NOT_ACTIVE
+                message: Chiến dịch chưa mở bán
+                traceId: a1b2c3d4
+                timestamp: '2026-11-27T11:59:58Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`SOLD_OUT`, `LIMIT_EXCEEDED`, `IDEMPOTENCY_KEY_CONFLICT` or `REQUEST_IN_PROGRESS`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                soldOut:
+                  value:
+                    code: SOLD_OUT
+                    message: Sản phẩm đã hết
+                    traceId: a1b2c3d4
+                    timestamp: '2026-11-27T12:00:01Z'
+                limitExceeded:
+                  value:
+                    code: LIMIT_EXCEEDED
+                    message: Bạn đã mua tối đa 1 sản phẩm
+                    traceId: b2c3d4e5
+                    timestamp: '2026-11-27T12:00:01Z'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  # ===================== PAYMENTS =====================
+  /payments/{orderNo}:
+    parameters:
+      - $ref: '#/components/parameters/OrderNo'
+    post:
+      tags: [payments]
+      operationId: createPayment
+      summary: Start a payment session for a PENDING order
+      description: If an INITIATED payment already exists for the order it is returned with 200.
+      x-roles: [CUSTOMER]
+      responses:
+        '200':
+          description: Existing payment session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                id: 3301
+                orderNo: FS20261127000123
+                amount: '399.00'
+                status: INITIATED
+                paymentUrl: http://localhost:8080/mock-gateway/pay/3301
+                expiresAt: '2026-11-27T12:15:01Z'
+                createdAt: '2026-11-27T12:01:00Z'
+        '201':
+          description: Payment session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                id: 3301
+                orderNo: FS20261127000123
+                amount: '399.00'
+                status: INITIATED
+                paymentUrl: http://localhost:8080/mock-gateway/pay/3301
+                expiresAt: '2026-11-27T12:15:01Z'
+                createdAt: '2026-11-27T12:01:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidOrderState'
+    get:
+      tags: [payments]
+      operationId: getPayment
+      summary: Get the latest payment of an order
+      x-roles: [CUSTOMER]
+      responses:
+        '200':
+          description: Latest payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                id: 3301
+                orderNo: FS20261127000123
+                amount: '399.00'
+                status: SUCCESS
+                paymentUrl: http://localhost:8080/mock-gateway/pay/3301
+                expiresAt: '2026-11-27T12:15:01Z'
+                createdAt: '2026-11-27T12:01:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/callback:
+    post:
+      tags: [payments]
+      operationId: handlePaymentCallback
+      summary: Payment gateway webhook
+      description: |
+        Called by the (mock) payment gateway. Authenticated by `X-Signature`, not by JWT.
+        Duplicate callbacks (same `providerTxnId`) return 200 without reprocessing.
+        SUCCESS → order PAID; FAILED → order CANCELLED and stock released.
+      x-roles: [PUBLIC]
+      security: []
+      parameters:
+        - name: X-Signature
+          in: header
+          required: true
+          description: Hex-encoded `HMAC-SHA256(rawRequestBody, sharedSecret)`.
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+          example: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCallbackRequest'
+            example:
+              paymentId: 3301
+              orderNo: FS20261127000123
+              providerTxnId: MOCK-TXN-8f2a91
+              amount: '399.00'
+              status: SUCCESS
+              occurredAt: '2026-11-27T12:03:10Z'
+      responses:
+        '200':
+          description: Callback accepted (processed now or previously).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCallbackAck'
+              example:
+                received: true
+                duplicate: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Signature mismatch (`INVALID_SIGNATURE`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INVALID_SIGNATURE
+                message: Chữ ký không hợp lệ
+                traceId: a1b2c3d4
+                timestamp: '2026-11-27T12:03:10Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================== AI =====================
+  /ai/chat:
+    post:
+      tags: [ai]
+      operationId: chatWithAssistant
+      summary: Ask the AI shopping assistant
+      description: |
+        RAG over product descriptions plus tools (searchProducts, getOrderStatus, getActiveFlashSales).
+        Order questions require a token; tools always use the userId from the token.
+        If the LLM fails or exceeds 10 s, a fallback reply is returned with `fallback: true`.
+        Daily question quota per user/IP; exceeding it returns 429 `AI_QUOTA_EXCEEDED`.
+      x-roles: [PUBLIC]
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiChatRequest'
+            example:
+              message: Có điện thoại nào dưới 500 đô đang flash-sale không?
+              conversationId: 4b8e2f0a-1c3d-4e5f-8a9b-0c1d2e3f4a5b
+      responses:
+        '200':
+          description: Assistant reply.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiChatResponse'
+              example:
+                conversationId: 4b8e2f0a-1c3d-4e5f-8a9b-0c1d2e3f4a5b
+                reply: iPhone 9 đang flash-sale giá 399.00 USD đến 13:00 UTC hôm nay.
+                fallback: false
+                products:
+                  - id: 101
+                    name: iPhone 9
+                    slug: iphone-9
+                    brand: Apple
+                    price: '549.00'
+                    rating: 4.69
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    categorySlug: smartphones
+                    inStock: true
+                    flashSale:
+                      itemId: 501
+                      salePrice: '399.00'
+                      endTime: '2026-11-27T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  # ===================== ADMIN: PRODUCTS =====================
+  /admin/products:
+    get:
+      tags: [admin-products]
+      operationId: adminListProducts
+      summary: List products (all statuses)
+      x-roles: [ADMIN]
+      parameters:
+        - name: q
+          in: query
+          description: Search by name, SKU or brand.
+          schema:
+            type: string
+          example: iphone
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductStatus'
+          example: ACTIVE
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          example: 3
+        - name: lowStock
+          in: query
+          description: Only products whose available quantity is at or below this threshold.
+          schema:
+            type: integer
+            minimum: 0
+          example: 10
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/AdminProductSort'
+      responses:
+        '200':
+          description: Page of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductPage'
+              example:
+                items:
+                  - id: 101
+                    sku: SKU-APL-0101
+                    name: iPhone 9
+                    slug: iphone-9
+                    brand: Apple
+                    price: '549.00'
+                    status: ACTIVE
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    categoryId: 3
+                    inventory:
+                      quantity: 194
+                      reserved: 100
+                      available: 94
+                    updatedAt: '2026-10-27T08:00:00Z'
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [admin-products]
+      operationId: adminCreateProduct
+      summary: Create a product
+      description: Images are added afterwards through the upload-url flow.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpsertRequest'
+            example:
+              categoryId: 3
+              sku: SKU-SAM-0201
+              name: Samsung Galaxy S26
+              slug: samsung-galaxy-s26
+              description: Flagship phone.
+              brand: Samsung
+              price: '899.00'
+              status: INACTIVE
+              initialStock: 50
+      responses:
+        '201':
+          description: Product created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductDetail'
+              example:
+                id: 201
+                sku: SKU-SAM-0201
+                name: Samsung Galaxy S26
+                slug: samsung-galaxy-s26
+                brand: Samsung
+                price: '899.00'
+                status: INACTIVE
+                thumbnailUrl: null
+                categoryId: 3
+                inventory:
+                  quantity: 50
+                  reserved: 0
+                  available: 50
+                updatedAt: '2026-10-27T10:00:00Z'
+                description: Flagship phone.
+                rating: null
+                sourceId: null
+                images: []
+                createdAt: '2026-10-27T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: SKU or slug already used (`DUPLICATE_SKU`, `DUPLICATE_SLUG`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: DUPLICATE_SKU
+                message: SKU đã tồn tại
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:00:00Z'
+
+  /admin/products/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [admin-products]
+      operationId: adminGetProduct
+      summary: Get product detail
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Product detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductDetail'
+              example:
+                id: 101
+                sku: SKU-APL-0101
+                name: iPhone 9
+                slug: iphone-9
+                brand: Apple
+                price: '549.00'
+                status: ACTIVE
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                categoryId: 3
+                inventory:
+                  quantity: 194
+                  reserved: 100
+                  available: 94
+                updatedAt: '2026-10-27T08:00:00Z'
+                description: An apple mobile which is nothing like apple.
+                rating: 4.69
+                sourceId: 1
+                images:
+                  - id: 9001
+                    url: https://cdn.flashopify.local/products/101/1.webp
+                    sortOrder: 0
+                createdAt: '2026-10-20T08:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [admin-products]
+      operationId: adminUpdateProduct
+      summary: Update a product
+      description: '`initialStock` is ignored; use the inventory endpoint.'
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpsertRequest'
+            example:
+              categoryId: 3
+              sku: SKU-APL-0101
+              name: iPhone 9
+              slug: iphone-9
+              description: Updated description.
+              brand: Apple
+              price: '529.00'
+              status: ACTIVE
+      responses:
+        '200':
+          description: Updated product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductDetail'
+              example:
+                id: 101
+                sku: SKU-APL-0101
+                name: iPhone 9
+                slug: iphone-9
+                brand: Apple
+                price: '529.00'
+                status: ACTIVE
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                categoryId: 3
+                inventory:
+                  quantity: 194
+                  reserved: 100
+                  available: 94
+                updatedAt: '2026-10-27T10:05:00Z'
+                description: Updated description.
+                rating: 4.69
+                sourceId: 1
+                images: []
+                createdAt: '2026-10-20T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [admin-products]
+      operationId: adminDeleteProduct
+      summary: Soft-delete a product
+      description: Sets status DELETED. Rejected while the product is in a SCHEDULED or RUNNING campaign.
+      x-roles: [ADMIN]
+      responses:
+        '204':
+          description: Product deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/products/{productId}/inventory:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    put:
+      tags: [admin-products]
+      operationId: adminUpdateInventory
+      summary: Set the stock quantity of a product
+      description: Uses optimistic locking; send the `version` you read. Quantity cannot go below `reserved`.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInventoryRequest'
+            example:
+              quantity: 250
+              version: 7
+      responses:
+        '200':
+          description: Updated inventory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inventory'
+              example:
+                quantity: 250
+                reserved: 100
+                available: 150
+                version: 8
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version mismatch (`CONCURRENT_MODIFICATION`) or below reserved (`INSUFFICIENT_STOCK`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: CONCURRENT_MODIFICATION
+                message: Tồn kho đã bị thay đổi, vui lòng tải lại
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:05:00Z'
+
+  /admin/products/{productId}/images/upload-url:
+    post:
+      tags: [admin-products]
+      operationId: adminCreateProductImageUploadUrl
+      summary: Get a presigned URL to upload a product image
+      description: |
+        Step 1 of 2. The client PUTs the file to `uploadUrl` (with the returned headers) directly to
+        MinIO/S3, then calls `POST /admin/products/{productId}/images` with `objectKey`.
+        JPG/PNG/WebP only, max 5 MB, max 8 gallery images per product.
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageUploadUrlRequest'
+            example:
+              fileName: front.webp
+              contentType: image/webp
+              contentLength: 482133
+      responses:
+        '200':
+          description: Presigned upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageUploadUrlResponse'
+              example:
+                uploadUrl: http://localhost:9000/flashopify/products/101/tmp/0b6e7c.webp?X-Amz-Signature=abc
+                objectKey: products/101/tmp/0b6e7c.webp
+                method: PUT
+                headers:
+                  Content-Type: image/webp
+                expiresAt: '2026-10-27T10:15:00Z'
+        '400':
+          description: Validation error, `UNSUPPORTED_MEDIA_TYPE` or `FILE_TOO_LARGE`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: FILE_TOO_LARGE
+                message: Ảnh tối đa 5 MB
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:10:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ImageLimitExceeded'
+
+  /admin/products/{productId}/images:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    post:
+      tags: [admin-products]
+      operationId: adminAddProductImage
+      summary: Register an uploaded image on the product
+      description: Step 2 of 2. Verifies the object exists in storage, then stores its CDN URL.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddProductImageRequest'
+            example:
+              objectKey: products/101/tmp/0b6e7c.webp
+              sortOrder: 2
+              setAsThumbnail: false
+      responses:
+        '201':
+          description: Image saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImage'
+              example:
+                id: 9003
+                url: https://cdn.flashopify.local/products/101/0b6e7c.webp
+                sortOrder: 2
+        '400':
+          description: Validation error or object not found in storage (`OBJECT_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: OBJECT_NOT_FOUND
+                message: Chưa tìm thấy file đã upload
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:12:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ImageLimitExceeded'
+    put:
+      tags: [admin-products]
+      operationId: adminReorderProductImages
+      summary: Reorder product images
+      description: '`imageIds` must contain every image of the product exactly once; the index becomes `sortOrder`.'
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderImagesRequest'
+            example:
+              imageIds: [9003, 9001, 9002]
+      responses:
+        '200':
+          description: Images in their new order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductImage'
+              example:
+                - id: 9003
+                  url: https://cdn.flashopify.local/products/101/0b6e7c.webp
+                  sortOrder: 0
+                - id: 9001
+                  url: https://cdn.flashopify.local/products/101/1.webp
+                  sortOrder: 1
+                - id: 9002
+                  url: https://cdn.flashopify.local/products/101/2.webp
+                  sortOrder: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/products/{productId}/images/{imageId}:
+    delete:
+      tags: [admin-products]
+      operationId: adminDeleteProductImage
+      summary: Delete a product image
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          example: 9002
+      responses:
+        '204':
+          description: Image deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================== ADMIN: FLASH SALES =====================
+  /admin/flash-sales:
+    get:
+      tags: [admin-flash-sales]
+      operationId: adminListFlashSales
+      summary: List flash-sale campaigns
+      x-roles: [ADMIN]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/FlashSaleCampaignStatus'
+          example: SCHEDULED
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/CampaignSort'
+      responses:
+        '200':
+          description: Page of campaigns (without items).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaignPage'
+              example:
+                items:
+                  - id: 7
+                    name: Black Friday 12h
+                    startTime: '2026-11-27T12:00:00Z'
+                    endTime: '2026-11-27T13:00:00Z'
+                    status: SCHEDULED
+                    itemCount: 1
+                    totalStock: 100
+                    createdBy: 1
+                    createdAt: '2026-10-27T10:00:00Z'
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [admin-flash-sales]
+      operationId: adminCreateFlashSale
+      summary: Create a flash-sale campaign
+      description: |
+        Validates start time in the future, end after start, and `totalStock` ≤ available inventory
+        per product; reserves that stock. Status starts as SCHEDULED; stock is warmed up into Redis
+        5 minutes before `startTime`.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignUpsertRequest'
+            example:
+              name: Black Friday 12h
+              startTime: '2026-11-27T12:00:00Z'
+              endTime: '2026-11-27T13:00:00Z'
+              items:
+                - productId: 101
+                  salePrice: '399.00'
+                  totalStock: 100
+                  limitPerUser: 1
+      responses:
+        '201':
+          description: Campaign created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaignDetail'
+              example:
+                id: 7
+                name: Black Friday 12h
+                startTime: '2026-11-27T12:00:00Z'
+                endTime: '2026-11-27T13:00:00Z'
+                status: SCHEDULED
+                itemCount: 1
+                totalStock: 100
+                createdBy: 1
+                createdAt: '2026-10-27T10:00:00Z'
+                items:
+                  - id: 501
+                    productId: 101
+                    productName: iPhone 9
+                    productSlug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    originalPrice: '549.00'
+                    salePrice: '399.00'
+                    totalStock: 100
+                    remainingStock: 100
+                    limitPerUser: 1
+                    sold: 0
+        '400':
+          description: Field errors (`VALIDATION_ERROR`) or `INVALID_TIME_RANGE`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu không hợp lệ
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:00:00Z'
+                fieldErrors:
+                  - field: startTime
+                    message: must be in the future
+                  - field: items[0].totalStock
+                    message: exceeds available stock (94)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/InsufficientStock'
+
+  /admin/flash-sales/{campaignId}:
+    parameters:
+      - $ref: '#/components/parameters/CampaignId'
+    get:
+      tags: [admin-flash-sales]
+      operationId: adminGetFlashSale
+      summary: Get a campaign with its items
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Campaign detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaignDetail'
+              example:
+                id: 7
+                name: Black Friday 12h
+                startTime: '2026-11-27T12:00:00Z'
+                endTime: '2026-11-27T13:00:00Z'
+                status: RUNNING
+                itemCount: 1
+                totalStock: 100
+                createdBy: 1
+                createdAt: '2026-10-27T10:00:00Z'
+                items:
+                  - id: 501
+                    productId: 101
+                    productName: iPhone 9
+                    productSlug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    originalPrice: '549.00'
+                    salePrice: '399.00'
+                    totalStock: 100
+                    remainingStock: 37
+                    limitPerUser: 1
+                    sold: 63
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [admin-flash-sales]
+      operationId: adminUpdateFlashSale
+      summary: Update a SCHEDULED campaign
+      description: Only allowed before warm-up (more than 5 minutes before start); otherwise `CAMPAIGN_NOT_EDITABLE`.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignUpsertRequest'
+            example:
+              name: Black Friday 12h (extended)
+              startTime: '2026-11-27T12:00:00Z'
+              endTime: '2026-11-27T14:00:00Z'
+              items:
+                - productId: 101
+                  salePrice: '399.00'
+                  totalStock: 90
+                  limitPerUser: 1
+      responses:
+        '200':
+          description: Updated campaign.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaignDetail'
+              example:
+                id: 7
+                name: Black Friday 12h (extended)
+                startTime: '2026-11-27T12:00:00Z'
+                endTime: '2026-11-27T14:00:00Z'
+                status: SCHEDULED
+                itemCount: 1
+                totalStock: 90
+                createdBy: 1
+                createdAt: '2026-10-27T10:00:00Z'
+                items:
+                  - id: 501
+                    productId: 101
+                    productName: iPhone 9
+                    productSlug: iphone-9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    originalPrice: '549.00'
+                    salePrice: '399.00'
+                    totalStock: 90
+                    remainingStock: 90
+                    limitPerUser: 1
+                    sold: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CampaignNotEditable'
+
+  /admin/flash-sales/{campaignId}/cancel:
+    post:
+      tags: [admin-flash-sales]
+      operationId: adminCancelFlashSale
+      summary: Cancel a SCHEDULED or RUNNING campaign
+      description: Stops new purchases immediately and releases unsold reserved stock. Existing orders are kept.
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          description: Cancelled campaign.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaignSummary'
+              example:
+                id: 7
+                name: Black Friday 12h
+                startTime: '2026-11-27T12:00:00Z'
+                endTime: '2026-11-27T13:00:00Z'
+                status: CANCELLED
+                itemCount: 1
+                totalStock: 100
+                createdBy: 1
+                createdAt: '2026-10-27T10:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CampaignNotEditable'
+
+  # ===================== ADMIN: ORDERS =====================
+  /admin/orders:
+    get:
+      tags: [admin-orders]
+      operationId: adminListOrders
+      summary: List orders of all customers
+      x-roles: [ADMIN]
+      parameters:
+        - name: q
+          in: query
+          description: Order number or customer email.
+          schema:
+            type: string
+          example: FS2026
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+          example: PENDING
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderType'
+          example: FLASH
+        - name: campaignId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          example: 7
+        - name: userId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          example: 1024
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/OrderSort'
+      responses:
+        '200':
+          description: Page of orders.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderPage'
+              example:
+                items:
+                  - orderNo: FS20261127000123
+                    type: FLASH
+                    status: PAID
+                    totalAmount: '399.00'
+                    itemCount: 1
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    createdAt: '2026-11-27T12:00:01Z'
+                    expiredAt: '2026-11-27T12:15:01Z'
+                    paidAt: '2026-11-27T12:03:10Z'
+                    customer:
+                      id: 1024
+                      email: an.nguyen@example.com
+                      fullName: Nguyen Van An
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/orders/{orderNo}:
+    get:
+      tags: [admin-orders]
+      operationId: adminGetOrder
+      summary: Get order detail with payments
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: Order detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderDetail'
+              example:
+                orderNo: FS20261127000123
+                type: FLASH
+                status: PAID
+                totalAmount: '399.00'
+                itemCount: 1
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-11-27T12:00:01Z'
+                expiredAt: '2026-11-27T12:15:01Z'
+                paidAt: '2026-11-27T12:03:10Z'
+                items:
+                  - productId: 101
+                    productName: iPhone 9
+                    thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                    quantity: 1
+                    unitPrice: '399.00'
+                    lineTotal: '399.00'
+                shipping:
+                  name: Nguyen Van An
+                  phone: '0901234567'
+                  address: 12 Nguyen Hue, Ben Nghe, Quan 1, Ho Chi Minh
+                flashSaleItemId: 501
+                customer:
+                  id: 1024
+                  email: an.nguyen@example.com
+                  fullName: Nguyen Van An
+                payments:
+                  - id: 3301
+                    orderNo: FS20261127000123
+                    amount: '399.00'
+                    status: SUCCESS
+                    paymentUrl: http://localhost:8080/mock-gateway/pay/3301
+                    expiresAt: '2026-11-27T12:15:01Z'
+                    createdAt: '2026-11-27T12:01:00Z'
+                updatedAt: '2026-11-27T12:03:10Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/orders/{orderNo}/complete:
+    post:
+      tags: [admin-orders]
+      operationId: adminCompleteOrder
+      summary: Mark a PAID order as COMPLETED
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: Completed order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummary'
+              example:
+                orderNo: FS20261127000123
+                type: FLASH
+                status: COMPLETED
+                totalAmount: '399.00'
+                itemCount: 1
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-11-27T12:00:01Z'
+                expiredAt: '2026-11-27T12:15:01Z'
+                paidAt: '2026-11-27T12:03:10Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidOrderState'
+
+  /admin/orders/{orderNo}/cancel:
+    post:
+      tags: [admin-orders]
+      operationId: adminCancelOrder
+      summary: Cancel a PENDING order
+      description: Releases stock. PAID orders cannot be cancelled (no real refunds in scope).
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCancelOrderRequest'
+            example:
+              reason: Khách yêu cầu huỷ qua hotline
+      responses:
+        '200':
+          description: Cancelled order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummary'
+              example:
+                orderNo: OD20261027000045
+                type: NORMAL
+                status: CANCELLED
+                totalAmount: '1098.00'
+                itemCount: 2
+                thumbnailUrl: https://cdn.flashopify.local/products/101/thumbnail.webp
+                createdAt: '2026-10-27T09:15:00Z'
+                expiredAt: '2026-10-27T09:30:00Z'
+                paidAt: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidOrderState'
+
+  # ===================== ADMIN: CUSTOMERS =====================
+  /admin/customers:
+    get:
+      tags: [admin-customers]
+      operationId: adminListCustomers
+      summary: List customers
+      x-roles: [ADMIN]
+      parameters:
+        - name: q
+          in: query
+          description: Email, name or phone.
+          schema:
+            type: string
+          example: nguyen
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+          example: ACTIVE
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/CustomerSort'
+      responses:
+        '200':
+          description: Page of customers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCustomerPage'
+              example:
+                items:
+                  - id: 1024
+                    email: an.nguyen@example.com
+                    fullName: Nguyen Van An
+                    phone: '0901234567'
+                    status: ACTIVE
+                    orderCount: 3
+                    totalSpent: '1497.00'
+                    createdAt: '2026-10-27T08:00:00Z'
+                page: 0
+                size: 20
+                totalItems: 1
+                totalPages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/customers/{userId}:
+    get:
+      tags: [admin-customers]
+      operationId: adminGetCustomer
+      summary: Get a customer
+      x-roles: [ADMIN]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          example: 1024
+      responses:
+        '200':
+          description: Customer with addresses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCustomerDetail'
+              example:
+                id: 1024
+                email: an.nguyen@example.com
+                fullName: Nguyen Van An
+                phone: '0901234567'
+                status: ACTIVE
+                orderCount: 3
+                totalSpent: '1497.00'
+                createdAt: '2026-10-27T08:00:00Z'
+                lockedUntil: null
+                addresses:
+                  - id: 12
+                    receiverName: Nguyen Van An
+                    phone: '0901234567'
+                    addressLine: 12 Nguyen Hue
+                    ward: Ben Nghe
+                    district: Quan 1
+                    city: Ho Chi Minh
+                    isDefault: true
+                    createdAt: '2026-10-27T08:05:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================== ADMIN: STATS =====================
+  /admin/stats/overview:
+    get:
+      tags: [admin-stats]
+      operationId: adminGetStatsOverview
+      summary: KPI cards for the dashboard
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: KPIs for the period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsOverview'
+              example:
+                from: '2026-11-01T00:00:00Z'
+                to: '2026-12-01T00:00:00Z'
+                revenue: '125430.00'
+                paidOrders: 312
+                pendingOrders: 14
+                cancelledOrders: 41
+                expiredOrders: 27
+                newCustomers: 88
+                averageOrderValue: '402.02'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/stats/revenue:
+    get:
+      tags: [admin-stats]
+      operationId: adminGetRevenueSeries
+      summary: Revenue time series for the dashboard chart
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [HOUR, DAY, MONTH]
+            default: DAY
+          example: DAY
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderType'
+          example: FLASH
+      responses:
+        '200':
+          description: Buckets in ascending order (UTC).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueSeries'
+              example:
+                granularity: DAY
+                points:
+                  - bucketStart: '2026-11-26T00:00:00Z'
+                    revenue: '3120.00'
+                    orders: 8
+                  - bucketStart: '2026-11-27T00:00:00Z'
+                    revenue: '39900.00'
+                    orders: 100
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/stats/flash-sales/{campaignId}:
+    get:
+      tags: [admin-stats]
+      operationId: adminGetFlashSaleStats
+      summary: Stock and order stats of a campaign
+      description: Compares Redis stock with MySQL orders to surface reconciliation drift.
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          description: Campaign stats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignStats'
+              example:
+                campaignId: 7
+                status: ENDED
+                revenue: '39900.00'
+                items:
+                  - itemId: 501
+                    productId: 101
+                    productName: iPhone 9
+                    totalStock: 100
+                    redisRemaining: 0
+                    pendingOrders: 0
+                    paidOrders: 100
+                    cancelledOrders: 0
+                    expiredOrders: 0
+                    revenue: '39900.00'
+                    inSync: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from `/auth/login` or `/auth/refresh` (expires after 15 minutes).
+
+  headers:
+    IdempotentReplayed:
+      description: '`true` when the response is a replay of an earlier request with the same Idempotency-Key.'
+      schema:
+        type: boolean
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated unique key (UUID recommended) per purchase attempt. Kept for 24 hours.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 64
+      example: 7f3c2a10-5b1e-4c8d-9a2f-1e6b0d4c9e77
+    Page:
+      name: page
+      in: query
+      description: 0-based page index.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    ProductSort:
+      name: sort
+      in: query
+      description: '`field,direction`.'
+      schema:
+        type: string
+        enum: ['createdAt,desc', 'price,asc', 'price,desc', 'rating,desc', 'name,asc']
+        default: 'createdAt,desc'
+      example: 'price,asc'
+    AdminProductSort:
+      name: sort
+      in: query
+      description: '`field,direction`.'
+      schema:
+        type: string
+        enum: ['updatedAt,desc', 'createdAt,desc', 'name,asc', 'price,asc', 'price,desc', 'available,asc']
+        default: 'updatedAt,desc'
+      example: 'available,asc'
+    OrderSort:
+      name: sort
+      in: query
+      description: '`field,direction`.'
+      schema:
+        type: string
+        enum: ['createdAt,desc', 'createdAt,asc', 'totalAmount,desc', 'totalAmount,asc']
+        default: 'createdAt,desc'
+      example: 'createdAt,desc'
+    CampaignSort:
+      name: sort
+      in: query
+      description: '`field,direction`.'
+      schema:
+        type: string
+        enum: ['startTime,desc', 'startTime,asc', 'createdAt,desc']
+        default: 'startTime,desc'
+      example: 'startTime,desc'
+    CustomerSort:
+      name: sort
+      in: query
+      description: '`field,direction`.'
+      schema:
+        type: string
+        enum: ['createdAt,desc', 'totalSpent,desc', 'orderCount,desc', 'fullName,asc']
+        default: 'createdAt,desc'
+      example: 'totalSpent,desc'
+    From:
+      name: from
+      in: query
+      description: Inclusive start (UTC).
+      schema:
+        type: string
+        format: date-time
+      example: '2026-11-01T00:00:00Z'
+    To:
+      name: to
+      in: query
+      description: Exclusive end (UTC).
+      schema:
+        type: string
+        format: date-time
+      example: '2026-12-01T00:00:00Z'
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      example: 101
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      example: 12
+    OrderNo:
+      name: orderNo
+      in: path
+      required: true
+      description: '`OD` (normal) or `FS` (flash-sale) + 14 digits.'
+      schema:
+        $ref: '#/components/schemas/OrderNo'
+      example: FS20261127000123
+    FlashSaleItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      example: 501
+    CampaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      example: 7
+
+  responses:
+    BadRequest:
+      description: Invalid input (`VALIDATION_ERROR`, with `fieldErrors`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: VALIDATION_ERROR
+            message: Dữ liệu không hợp lệ
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+            fieldErrors:
+              - field: email
+                message: must be a well-formed email address
+    Unauthorized:
+      description: Missing, invalid or expired token (`UNAUTHORIZED`, `TOKEN_EXPIRED`, `INVALID_TOKEN`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: TOKEN_EXPIRED
+            message: Phiên đăng nhập đã hết hạn
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    Forbidden:
+      description: Authenticated but role not allowed (`FORBIDDEN`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: FORBIDDEN
+            message: Bạn không có quyền thực hiện thao tác này
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    NotFound:
+      description: Resource not found or not owned by the caller (`*_NOT_FOUND`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: ORDER_NOT_FOUND
+            message: Không tìm thấy đơn hàng
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    Conflict:
+      description: Request conflicts with current state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: PRODUCT_IN_ACTIVE_CAMPAIGN
+            message: Sản phẩm đang nằm trong chiến dịch flash-sale
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    InsufficientStock:
+      description: Not enough available stock (`INSUFFICIENT_STOCK`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: INSUFFICIENT_STOCK
+            message: Sản phẩm chỉ còn 2
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    InvalidOrderState:
+      description: Order status does not allow this action (`INVALID_ORDER_STATE`, `ORDER_EXPIRED`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: INVALID_ORDER_STATE
+            message: Đơn hàng không ở trạng thái PENDING
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    CampaignNotEditable:
+      description: Campaign is past warm-up, ended or cancelled (`CAMPAIGN_NOT_EDITABLE`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: CAMPAIGN_NOT_EDITABLE
+            message: Chiến dịch đã warm-up, không thể sửa
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    ImageLimitExceeded:
+      description: Product already has 8 gallery images (`IMAGE_LIMIT_EXCEEDED`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: IMAGE_LIMIT_EXCEEDED
+            message: Mỗi sản phẩm tối đa 8 ảnh
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+    TooManyRequests:
+      description: Rate limit or quota exceeded (`RATE_LIMITED`, `AI_QUOTA_EXCEEDED`).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: RATE_LIMITED
+            message: Bạn thao tác quá nhanh, thử lại sau
+            traceId: a1b2c3d4
+            timestamp: '2026-10-27T08:00:00Z'
+
+  schemas:
+    # ---------- common ----------
+    Money:
+      type: string
+      description: Decimal amount with exactly 2 fraction digits (DECIMAL(15,2)).
+      pattern: '^\d{1,13}\.\d{2}$'
+      examples: ['549.00']
+    OrderNo:
+      type: string
+      pattern: '^(OD|FS)\d{14}$'
+      examples: [FS20261127000123]
+    ErrorCode:
+      type: string
+      description: Business error codes. The frontend maps them to toast messages.
+      enum:
+        # generic
+        - VALIDATION_ERROR
+        - MALFORMED_REQUEST
+        - UNAUTHORIZED
+        - INVALID_TOKEN
+        - TOKEN_EXPIRED
+        - FORBIDDEN
+        - RATE_LIMITED
+        - INTERNAL_ERROR
+        - SERVICE_UNAVAILABLE
+        # idempotency
+        - IDEMPOTENCY_KEY_MISSING
+        - IDEMPOTENCY_KEY_CONFLICT
+        - REQUEST_IN_PROGRESS
+        # auth / user
+        - INVALID_CREDENTIALS
+        - ACCOUNT_LOCKED
+        - EMAIL_ALREADY_EXISTS
+        - USER_NOT_FOUND
+        - ADDRESS_NOT_FOUND
+        # catalog / inventory
+        - PRODUCT_NOT_FOUND
+        - PRODUCT_NOT_AVAILABLE
+        - CATEGORY_NOT_FOUND
+        - DUPLICATE_SKU
+        - DUPLICATE_SLUG
+        - INSUFFICIENT_STOCK
+        - CONCURRENT_MODIFICATION
+        - PRODUCT_IN_ACTIVE_CAMPAIGN
+        # images
+        - IMAGE_NOT_FOUND
+        - IMAGE_LIMIT_EXCEEDED
+        - UNSUPPORTED_MEDIA_TYPE
+        - FILE_TOO_LARGE
+        - OBJECT_NOT_FOUND
+        # cart
+        - CART_ITEM_NOT_FOUND
+        - CART_EMPTY
+        # flash-sale
+        - CAMPAIGN_NOT_FOUND
+        - FLASH_SALE_ITEM_NOT_FOUND
+        - CAMPAIGN_NOT_ACTIVE
+        - CAMPAIGN_NOT_EDITABLE
+        - INVALID_TIME_RANGE
+        - SOLD_OUT
+        - LIMIT_EXCEEDED
+        # orders / payments
+        - ORDER_NOT_FOUND
+        - INVALID_ORDER_STATE
+        - ORDER_EXPIRED
+        - PAYMENT_NOT_FOUND
+        - INVALID_SIGNATURE
+        - PAYMENT_AMOUNT_MISMATCH
+        # ai
+        - AI_QUOTA_EXCEEDED
+        - AI_LOGIN_REQUIRED
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Path of the invalid field, e.g. `items[0].quantity`.
+        message:
+          type: string
+        rejectedValue:
+          description: The rejected value (omitted for secrets).
+    ErrorResponse:
+      type: object
+      required: [code, message, traceId, timestamp]
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: Human-readable message (Vietnamese or English per Accept-Language).
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        fieldErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    PageResponse:
+      type: object
+      description: Generic page. Concrete `*Page` schemas narrow `items`.
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+
+    # ---------- auth / user ----------
+    Role:
+      type: string
+      enum: [CUSTOMER, ADMIN]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, LOCKED, DELETED]
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          pattern: '^\+?\d{9,15}$'
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          const: Bearer
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds.
+        user:
+          $ref: '#/components/schemas/UserProfile'
+    UserProfile:
+      type: object
+      required: [id, email, fullName, role, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        phone:
+          type: [string, 'null']
+        role:
+          $ref: '#/components/schemas/Role'
+        createdAt:
+          type: string
+          format: date-time
+    UpdateProfileRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          pattern: '^\+?\d{9,15}$'
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+    DeleteAccountRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+    AddressRequest:
+      type: object
+      required: [receiverName, phone, addressLine, city]
+      properties:
+        receiverName:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          pattern: '^\+?\d{9,15}$'
+        addressLine:
+          type: string
+          maxLength: 255
+        ward:
+          type: string
+          maxLength: 100
+        district:
+          type: string
+          maxLength: 100
+        city:
+          type: string
+          maxLength: 100
+        isDefault:
+          type: boolean
+          default: false
+    Address:
+      type: object
+      required: [id, receiverName, phone, addressLine, city, isDefault, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        receiverName:
+          type: string
+        phone:
+          type: string
+        addressLine:
+          type: string
+        ward:
+          type: [string, 'null']
+        district:
+          type: [string, 'null']
+        city:
+          type: string
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # ---------- catalog ----------
+    Category:
+      type: object
+      required: [id, slug, name, productCount, children]
+      properties:
+        id:
+          type: integer
+          format: int64
+        slug:
+          type: string
+        name:
+          type: string
+        productCount:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    CategoryRef:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        slug:
+          type: string
+        name:
+          type: string
+    ProductStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, DELETED]
+    FlashSaleBadge:
+      type: object
+      description: Present when the product is in a RUNNING campaign.
+      required: [itemId, salePrice, endTime]
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        salePrice:
+          $ref: '#/components/schemas/Money'
+        endTime:
+          type: string
+          format: date-time
+    ProductSummary:
+      type: object
+      required: [id, name, slug, price, categorySlug, inStock]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        slug:
+          type: string
+        brand:
+          type: [string, 'null']
+        price:
+          $ref: '#/components/schemas/Money'
+        rating:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 5
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        categorySlug:
+          type: string
+        inStock:
+          type: boolean
+        flashSale:
+          oneOf:
+            - $ref: '#/components/schemas/FlashSaleBadge'
+            - type: 'null'
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProductSummary'
+        - type: object
+          required: [sku, category, availableQuantity, images]
+          properties:
+            sku:
+              type: string
+            description:
+              type: [string, 'null']
+            category:
+              $ref: '#/components/schemas/CategoryRef'
+            availableQuantity:
+              type: integer
+              minimum: 0
+            images:
+              type: array
+              maxItems: 8
+              items:
+                $ref: '#/components/schemas/ProductImage'
+    ProductImage:
+      type: object
+      required: [id, url, sortOrder]
+      properties:
+        id:
+          type: integer
+          format: int64
+        url:
+          type: string
+          format: uri
+        sortOrder:
+          type: integer
+          minimum: 0
+    ProductPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductSummary'
+
+    # ---------- cart ----------
+    CartItem:
+      type: object
+      required: [productId, name, slug, unitPrice, quantity, lineTotal, availableQuantity, addedAt]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        slug:
+          type: string
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: integer
+          minimum: 1
+        lineTotal:
+          $ref: '#/components/schemas/Money'
+        availableQuantity:
+          type: integer
+          minimum: 0
+          description: Lets the UI warn when the cart exceeds current stock.
+        addedAt:
+          type: string
+          format: date-time
+    Cart:
+      type: object
+      required: [items, totalQuantity, subtotal]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        totalQuantity:
+          type: integer
+        subtotal:
+          $ref: '#/components/schemas/Money'
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+    AddCartItemRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+    UpdateCartItemRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+
+    # ---------- orders ----------
+    OrderStatus:
+      type: string
+      description: '`PROCESSING` is transient: flash-sale purchase accepted but not yet persisted.'
+      enum: [PROCESSING, PENDING, PAID, COMPLETED, CANCELLED, EXPIRED]
+    OrderType:
+      type: string
+      enum: [NORMAL, FLASH]
+    OrderLineRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+    CreateOrderRequest:
+      type: object
+      required: [addressId, items]
+      properties:
+        addressId:
+          type: integer
+          format: int64
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/OrderLineRequest'
+        note:
+          type: string
+          maxLength: 255
+    OrderItem:
+      type: object
+      required: [productId, productName, quantity, unitPrice, lineTotal]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        lineTotal:
+          $ref: '#/components/schemas/Money'
+    ShippingInfo:
+      type: object
+      description: Snapshot of the address at order time.
+      required: [name, phone, address]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+    OrderSummary:
+      type: object
+      required: [orderNo, type, status, totalAmount, itemCount, createdAt]
+      properties:
+        orderNo:
+          $ref: '#/components/schemas/OrderNo'
+        type:
+          $ref: '#/components/schemas/OrderType'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        totalAmount:
+          $ref: '#/components/schemas/Money'
+        itemCount:
+          type: integer
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        expiredAt:
+          type: [string, 'null']
+          format: date-time
+          description: Deadline for payment (15 minutes after creation).
+        paidAt:
+          type: [string, 'null']
+          format: date-time
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/OrderSummary'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderItem'
+            shipping:
+              oneOf:
+                - $ref: '#/components/schemas/ShippingInfo'
+                - type: 'null'
+            flashSaleItemId:
+              type: [integer, 'null']
+              format: int64
+    OrderPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderSummary'
+
+    # ---------- flash sales ----------
+    FlashSaleCampaignStatus:
+      type: string
+      enum: [SCHEDULED, RUNNING, ENDED, CANCELLED]
+    FlashSaleItem:
+      type: object
+      required: [id, productId, productName, productSlug, originalPrice, salePrice, totalStock, remainingStock, limitPerUser]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Flash-sale item id (`itemId` in paths).
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        productSlug:
+          type: string
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        originalPrice:
+          $ref: '#/components/schemas/Money'
+        salePrice:
+          $ref: '#/components/schemas/Money'
+        totalStock:
+          type: integer
+          minimum: 1
+        remainingStock:
+          type: integer
+          minimum: 0
+        limitPerUser:
+          type: integer
+          minimum: 1
+    CampaignRef:
+      type: object
+      required: [id, name, startTime, endTime, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/FlashSaleCampaignStatus'
+    FlashSaleCampaign:
+      allOf:
+        - $ref: '#/components/schemas/CampaignRef'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/FlashSaleItem'
+    FlashSaleItemDetail:
+      allOf:
+        - $ref: '#/components/schemas/FlashSaleItem'
+        - type: object
+          required: [campaign, serverTime]
+          properties:
+            campaign:
+              $ref: '#/components/schemas/CampaignRef'
+            purchasedByMe:
+              type: [integer, 'null']
+              minimum: 0
+              description: Units already bought by the caller; null for anonymous calls.
+            serverTime:
+              type: string
+              format: date-time
+              description: Lets the countdown correct for client clock skew.
+    FlashSalePurchaseRequest:
+      type: object
+      required: [quantity, addressId]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+        addressId:
+          type: integer
+          format: int64
+    FlashSalePurchaseResponse:
+      type: object
+      required: [orderNo, status]
+      properties:
+        orderNo:
+          $ref: '#/components/schemas/OrderNo'
+        status:
+          type: string
+          const: PROCESSING
+
+    # ---------- payments ----------
+    PaymentStatus:
+      type: string
+      enum: [INITIATED, SUCCESS, FAILED]
+    Payment:
+      type: object
+      required: [id, orderNo, amount, status, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderNo:
+          $ref: '#/components/schemas/OrderNo'
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        paymentUrl:
+          type: [string, 'null']
+          format: uri
+          description: Mock gateway page where the customer completes payment.
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    PaymentCallbackRequest:
+      type: object
+      required: [paymentId, orderNo, providerTxnId, amount, status, occurredAt]
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+        orderNo:
+          $ref: '#/components/schemas/OrderNo'
+        providerTxnId:
+          type: string
+          maxLength: 64
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        failureReason:
+          type: [string, 'null']
+        occurredAt:
+          type: string
+          format: date-time
+    PaymentCallbackAck:
+      type: object
+      required: [received, duplicate]
+      properties:
+        received:
+          type: boolean
+        duplicate:
+          type: boolean
+          description: True when this providerTxnId was already processed.
+
+    # ---------- ai ----------
+    AiChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        conversationId:
+          type: string
+          format: uuid
+          description: Omit to start a new conversation.
+    AiChatResponse:
+      type: object
+      required: [conversationId, reply, fallback]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        reply:
+          type: string
+        fallback:
+          type: boolean
+          description: True when the LLM was unavailable and a canned reply was returned.
+        products:
+          type: array
+          description: Products referenced in the reply, for rendering cards.
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+
+    # ---------- admin: products ----------
+    Inventory:
+      type: object
+      required: [quantity, reserved, available]
+      properties:
+        quantity:
+          type: integer
+          minimum: 0
+        reserved:
+          type: integer
+          minimum: 0
+        available:
+          type: integer
+          minimum: 0
+          description: quantity - reserved.
+        version:
+          type: integer
+          description: Optimistic-lock version.
+    AdminProductSummary:
+      type: object
+      required: [id, sku, name, slug, price, status, categoryId, inventory, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        sku:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        brand:
+          type: [string, 'null']
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        categoryId:
+          type: integer
+          format: int64
+        inventory:
+          $ref: '#/components/schemas/Inventory'
+        updatedAt:
+          type: string
+          format: date-time
+    AdminProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminProductSummary'
+        - type: object
+          required: [images, createdAt]
+          properties:
+            description:
+              type: [string, 'null']
+            rating:
+              type: [number, 'null']
+            sourceId:
+              type: [integer, 'null']
+              description: DummyJSON id for seeded products.
+            images:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductImage'
+            createdAt:
+              type: string
+              format: date-time
+    AdminProductPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminProductSummary'
+    ProductUpsertRequest:
+      type: object
+      required: [categoryId, sku, name, slug, price, status]
+      properties:
+        categoryId:
+          type: integer
+          format: int64
+        sku:
+          type: string
+          maxLength: 50
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          maxLength: 255
+        description:
+          type: string
+        brand:
+          type: string
+          maxLength: 100
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        initialStock:
+          type: integer
+          minimum: 0
+          description: Only used on create.
+    UpdateInventoryRequest:
+      type: object
+      required: [quantity, version]
+      properties:
+        quantity:
+          type: integer
+          minimum: 0
+        version:
+          type: integer
+    ImageUploadUrlRequest:
+      type: object
+      required: [fileName, contentType, contentLength]
+      properties:
+        fileName:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        contentLength:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+    ImageUploadUrlResponse:
+      type: object
+      required: [uploadUrl, objectKey, method, headers, expiresAt]
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        objectKey:
+          type: string
+        method:
+          type: string
+          const: PUT
+        headers:
+          type: object
+          description: Headers the client must send with the upload.
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+    AddProductImageRequest:
+      type: object
+      required: [objectKey]
+      properties:
+        objectKey:
+          type: string
+        sortOrder:
+          type: integer
+          minimum: 0
+          description: Defaults to the end of the gallery.
+        setAsThumbnail:
+          type: boolean
+          default: false
+    ReorderImagesRequest:
+      type: object
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+
+    # ---------- admin: flash sales ----------
+    CampaignItemRequest:
+      type: object
+      required: [productId, salePrice, totalStock, limitPerUser]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        salePrice:
+          $ref: '#/components/schemas/Money'
+        totalStock:
+          type: integer
+          minimum: 1
+        limitPerUser:
+          type: integer
+          minimum: 1
+          default: 1
+    CampaignUpsertRequest:
+      type: object
+      required: [name, startTime, endTime, items]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CampaignItemRequest'
+    AdminCampaignSummary:
+      allOf:
+        - $ref: '#/components/schemas/CampaignRef'
+        - type: object
+          required: [itemCount, totalStock, createdBy, createdAt]
+          properties:
+            itemCount:
+              type: integer
+            totalStock:
+              type: integer
+            createdBy:
+              type: integer
+              format: int64
+            createdAt:
+              type: string
+              format: date-time
+    AdminCampaignItem:
+      allOf:
+        - $ref: '#/components/schemas/FlashSaleItem'
+        - type: object
+          required: [sold]
+          properties:
+            sold:
+              type: integer
+              minimum: 0
+    AdminCampaignDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminCampaignSummary'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminCampaignItem'
+    AdminCampaignPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminCampaignSummary'
+
+    # ---------- admin: orders / customers ----------
+    CustomerRef:
+      type: object
+      required: [id, email, fullName]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+    AdminOrderSummary:
+      allOf:
+        - $ref: '#/components/schemas/OrderSummary'
+        - type: object
+          required: [customer]
+          properties:
+            customer:
+              $ref: '#/components/schemas/CustomerRef'
+    AdminOrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/OrderDetail'
+        - type: object
+          required: [customer, payments, updatedAt]
+          properties:
+            customer:
+              $ref: '#/components/schemas/CustomerRef'
+            payments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Payment'
+            updatedAt:
+              type: string
+              format: date-time
+    AdminOrderPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminOrderSummary'
+    AdminCancelOrderRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 255
+    AdminCustomer:
+      type: object
+      required: [id, email, fullName, status, orderCount, totalSpent, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        phone:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        orderCount:
+          type: integer
+        totalSpent:
+          $ref: '#/components/schemas/Money'
+        createdAt:
+          type: string
+          format: date-time
+    AdminCustomerDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminCustomer'
+        - type: object
+          required: [addresses]
+          properties:
+            lockedUntil:
+              type: [string, 'null']
+              format: date-time
+            addresses:
+              type: array
+              items:
+                $ref: '#/components/schemas/Address'
+    AdminCustomerPage:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminCustomer'
+
+    # ---------- admin: stats ----------
+    StatsOverview:
+      type: object
+      required: [from, to, revenue, paidOrders, pendingOrders, cancelledOrders, expiredOrders, newCustomers, averageOrderValue]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        revenue:
+          $ref: '#/components/schemas/Money'
+        paidOrders:
+          type: integer
+        pendingOrders:
+          type: integer
+        cancelledOrders:
+          type: integer
+        expiredOrders:
+          type: integer
+        newCustomers:
+          type: integer
+        averageOrderValue:
+          $ref: '#/components/schemas/Money'
+    RevenuePoint:
+      type: object
+      required: [bucketStart, revenue, orders]
+      properties:
+        bucketStart:
+          type: string
+          format: date-time
+        revenue:
+          $ref: '#/components/schemas/Money'
+        orders:
+          type: integer
+    RevenueSeries:
+      type: object
+      required: [granularity, points]
+      properties:
+        granularity:
+          type: string
+          enum: [HOUR, DAY, MONTH]
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevenuePoint'
+    CampaignItemStats:
+      type: object
+      required: [itemId, productId, productName, totalStock, redisRemaining, pendingOrders, paidOrders, cancelledOrders, expiredOrders, revenue, inSync]
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        totalStock:
+          type: integer
+        redisRemaining:
+          type: [integer, 'null']
+          description: Null when the key is not in Redis (before warm-up or after cleanup).
+        pendingOrders:
+          type: integer
+        paidOrders:
+          type: integer
+        cancelledOrders:
+          type: integer
+        expiredOrders:
+          type: integer
+        revenue:
+          $ref: '#/components/schemas/Money'
+        inSync:
+          type: boolean
+          description: totalStock == redisRemaining + pendingOrders + paidOrders.
+    CampaignStats:
+      type: object
+      required: [campaignId, status, revenue, items]
+      properties:
+        campaignId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/FlashSaleCampaignStatus'
+        revenue:
+          $ref: '#/components/schemas/Money'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignItemStats'
