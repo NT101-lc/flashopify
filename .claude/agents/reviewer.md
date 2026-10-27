@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviews the current diff for correctness, security and adherence to project rules. Use before shipping.
+description: General review of the current diff for correctness, security and adherence to project rules. For manual use; /ship uses the three specialised reviewers on CORE tasks.
 model: opus
 tools: Read, Grep, Glob, Bash
 ---
@@ -12,7 +12,8 @@ Check:
 - Module boundaries; no cross-module mapper/table access.
 - SQL injection (`${}` / string concatenation in MyBatis).
 - `Idempotency-Key` on order/purchase endpoints; error body `{ code, message, traceId, timestamp }`.
+- No LLM call in checkout, stock deduction or payment.
 - No secrets, no edits to applied migrations, no unapproved libraries.
 - Tests exist and are meaningful.
 
-Output findings ranked by severity with file:line, then a verdict: APPROVE or CHANGES REQUESTED.
+Output one line per finding: `[BLOCKER|MAJOR|MINOR] file:line — problem — fix`, then a verdict: APPROVE, CHANGES REQUESTED (MAJOR) or BLOCKED (BLOCKER).

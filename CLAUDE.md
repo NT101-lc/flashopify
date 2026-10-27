@@ -10,6 +10,7 @@ Requirements live in [docs/srs.md](docs/srs.md); design lives in [docs/architect
 ## Tech stack
 
 - **Backend:** Java 17, Spring Boot 3, MyBatis, Lombok, MySQL 8, Redis 7, Kafka, Flyway, Spring AI + pgvector
+  (Java 17 + Lombok + MyBatis are fixed; no JPA/Hibernate, no other Java version.)
 - **Frontend:** React 18 + TypeScript (strict), Vite, React Router, TanStack Query, Tailwind + shadcn/ui
 - **Infra:** Docker Compose, MinIO (local) / S3 + CloudFront, GitHub Actions, AWS
 - **Seed data:** products + images from DummyJSON; images are downloaded into object storage
@@ -39,6 +40,11 @@ docs/           SRS, architecture, roadmap, conventions, ADRs, API specs
   ```
 - Schema changes go through Flyway migrations only.
 
+## AI constraints
+
+- No LLM call in the checkout, stock-deduction or payment paths. These flows must be 100% deterministic.
+- The in-app AI assistant (if any) may only call read-only tools (`searchProducts`, `getOrderStatus`, FAQ). It must never create or modify orders.
+
 ## Frontend rules
 
 - Organize by feature: `catalog`, `cart`, `checkout`, `flash-sale`, `account`, `admin`.
@@ -55,11 +61,29 @@ docs/           SRS, architecture, roadmap, conventions, ADRs, API specs
 
 ## Workflow
 
-1. **orchestrator** breaks the task into a plan.
-2. **coder** implements the plan.
-3. **tester** writes and runs tests.
-4. **reviewer** reviews the diff against these rules.
-5. `/ship` runs tests → review → commit (Conventional Commits).
+Models: **orchestrator** and reviewers = Opus, **coder** = Sonnet, **tester** = Haiku.
+
+The orchestrator classifies every task first and writes the type in the plan. When unsure, it is **CORE**.
+
+- **SIMPLE** — CRUD, auth, DTO/MyBatis mapper, seed data, config, pure UI.
+  One coder does it end to end → deterministic gate → hand to the user for review. No separate tester, no Opus review.
+- **CORE** — anything touching flash sale: stock deduction (Redis/Lua), oversell prevention, order idempotency, message queue/consumers, rate limiting, per-user purchase limits, Redis↔DB transactions.
+  Full pipeline, sequential:
+  1. orchestrator writes the plan (steps, files, acceptance criteria, mandatory test cases `TC-n`).
+  2. coder implements.
+  3. Deterministic gate (`scripts/gate.sh`: compile, test, spotless/checkstyle). Fail → back to coder; never go to LLM review on a red gate.
+  4. tester implements exactly the plan's `TC-n` list (no case dropped) and runs it.
+  5. Three independent reviewers in parallel: `reviewer-concurrency`, `reviewer-security`, `reviewer-performance`. Findings are BLOCKER / MAJOR / MINOR.
+  6. orchestrator merges findings: any BLOCKER → no merge; MAJOR → fix; MINOR → report only.
+  7. At most 2 fix → review rounds. BLOCKER still open after round 2 → stop and report to the user.
+
+`/ship` picks the branch automatically and ends with a short report.
+
+### Parallel work
+
+- Frontend and backend run in parallel only **after** the API contract is settled in `docs/api/openapi.yaml`. No contract yet → contract first.
+- Never let two agents modify the `order` or `inventory` module at the same time.
+- Every agent running in parallel works in its own git worktree.
 
 Agents live in `.claude/agents/`, commands in `.claude/commands/`.
 
@@ -67,6 +91,7 @@ Agents live in `.claude/agents/`, commands in `.claude/commands/`.
 
 | Task                | Command |
 |---------------------|---------|
+| Gate (deterministic)| `bash scripts/gate.sh` |
 | Start infra         | TBD     |
 | Run backend         | TBD     |
 | Backend tests       | TBD     |
@@ -90,3 +115,4 @@ Agents live in `.claude/agents/`, commands in `.claude/commands/`.
 - Don't add libraries outside the stack above without asking first.
 - Don't let modules bypass each other's service interfaces.
 - Don't skip `Idempotency-Key` on purchase/order endpoints.
+- Don't put an LLM call in checkout, stock deduction or payment.
