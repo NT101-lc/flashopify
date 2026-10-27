@@ -52,10 +52,10 @@ Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/
 ### FLS-005 · Đăng ký + đăng nhập JWT + khoá tài khoản
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-01, UC-01, UC-02, SEC-01, SEC-05, TC-10, ADR-0007
 `POST /auth/register`, `POST /auth/login`: BCrypt cost 10, access token 15 phút, đếm sai mật khẩu, khoá 15 phút sau 5 lần.
-- [ ] Email trùng → 409 `EMAIL_ALREADY_EXISTS`
-- [ ] Sai mật khẩu → 401; lần thứ 5 → 423 `ACCOUNT_LOCKED` (TC-10)
-- [ ] Đăng nhập thành công reset bộ đếm, trả `TokenResponse`
-- [ ] Coverage service auth ≥ 70%
+- [x] Email trùng → 409 `EMAIL_ALREADY_EXISTS`
+- [x] Sai mật khẩu → 401; lần thứ 5 → 423 `ACCOUNT_LOCKED` (TC-10)
+- [x] Đăng nhập thành công reset bộ đếm, trả `TokenResponse`
+- [x] Coverage service auth ≥ 70%
 
 ### FLS-006 · Refresh token, logout, đổi mật khẩu
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** SEC-02, SEC-03, ADR-0007

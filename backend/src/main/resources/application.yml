@@ -23,6 +23,16 @@ app:
       hikari:
         pool-name: ai-pool
 
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      issuer: flashopify
+      access-ttl: 15m
+      refresh-ttl: 7d
+    login:
+      max-failed-attempts: 5
+      lock-duration: 15m
+
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
