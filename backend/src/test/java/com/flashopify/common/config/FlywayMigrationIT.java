@@ -57,7 +57,7 @@ class FlywayMigrationIT {
   void mysqlMigrationAppliedAndCreatesCoreTables() {
     JdbcTemplate jdbc = new JdbcTemplate(mysqlDataSource);
 
-    assertThat(successfulVersions(jdbc)).containsExactly("1");
+    assertThat(successfulVersions(jdbc)).containsExactly("1", "202610271200");
     List<String> tables =
         jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()",

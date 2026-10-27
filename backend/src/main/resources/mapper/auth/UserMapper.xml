@@ -35,4 +35,28 @@
   <update id="updatePassword">
     UPDATE users SET password_hash = #{passwordHash} WHERE id = #{id}
   </update>
+  <select id="lockForUpdate" resultType="com.flashopify.auth.domain.User">
+    SELECT <include refid="columns"/> FROM users WHERE id = #{id} FOR UPDATE
+  </select>
+
+  <update id="updateProfile">
+    UPDATE users
+    <set>
+      <if test="fullName != null">full_name = #{fullName},</if>
+      <if test="phone != null">phone = #{phone},</if>
+    </set>
+    WHERE id = #{id}
+  </update>
+
+  <update id="anonymize">
+    UPDATE users SET
+      email = #{email},
+      full_name = #{fullName},
+      password_hash = #{passwordHash},
+      phone = NULL,
+      status = 'DELETED',
+      failed_login_count = 0,
+      locked_until = NULL
+    WHERE id = #{id}
+  </update>
 </mapper>

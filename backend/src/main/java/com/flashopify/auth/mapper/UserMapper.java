@@ -28,4 +28,18 @@ public interface UserMapper {
   int resetLoginFailures(@Param("id") long id);
 
   int updatePassword(@Param("id") long id, @Param("passwordHash") String passwordHash);
+
+  /** Row lock (SELECT ... FOR UPDATE); serialises per-user writes such as address changes. */
+  User lockForUpdate(@Param("id") long id);
+
+  /** Updates only the non-null arguments; callers must pass at least one. */
+  int updateProfile(
+      @Param("id") long id, @Param("fullName") String fullName, @Param("phone") String phone);
+
+  /** Soft delete: status DELETED, personal data replaced, credentials made unusable. */
+  int anonymize(
+      @Param("id") long id,
+      @Param("email") String email,
+      @Param("fullName") String fullName,
+      @Param("passwordHash") String passwordHash);
 }

@@ -60,6 +60,14 @@ public class SecurityConfig {
                         "/api/v1/auth/login",
                         "/api/v1/auth/refresh")
                     .permitAll()
+                    .requestMatchers("/api/v1/admin/**")
+                    .hasRole("ADMIN")
+                    .requestMatchers("/api/v1/me/addresses/**", "/api/v1/me/addresses")
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.DELETE, "/api/v1/me")
+                    .hasRole("CUSTOMER")
+                    .requestMatchers("/api/v1/me/**", "/api/v1/auth/logout")
+                    .authenticated()
                     .anyRequest()
                     .authenticated());
     return http.build();

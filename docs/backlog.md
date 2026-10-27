@@ -68,10 +68,10 @@ Refresh token 7 ngày lưu Redis, rotate mỗi lần dùng, phát hiện reuse; 
 ### FLS-007 · Phân quyền + hồ sơ + địa chỉ giao hàng
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-005 · **Liên kết:** HFR-01, SEC-04, SEC-07, OR-13
 Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELETE /me`, CRUD `/me/addresses`.
-- [ ] Endpoint ADMIN với token CUSTOMER → 403
-- [ ] userId luôn lấy từ token; sửa địa chỉ của người khác → 404
-- [ ] Chỉ một địa chỉ `isDefault`
-- [ ] Xoá tài khoản: status DELETED, ẩn danh dữ liệu, thu hồi token
+- [x] Endpoint ADMIN với token CUSTOMER → 403
+- [x] userId luôn lấy từ token; sửa địa chỉ của người khác → 404
+- [x] Chỉ một địa chỉ `isDefault`
+- [x] Xoá tài khoản: status DELETED, ẩn danh dữ liệu, thu hồi token
 
 ### FLS-008 · API catalog công khai + cache
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-02, UC-03, HNFR-01

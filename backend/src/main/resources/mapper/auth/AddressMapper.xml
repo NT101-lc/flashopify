@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.auth.mapper.AddressMapper">
+
+  <sql id="columns">
+    id, user_id, receiver_name, phone, address_line, ward, district, city,
+    is_default AS defaultAddress, created_at
+  </sql>
+
+  <select id="findAllByUser" resultType="com.flashopify.auth.domain.Address">
+    SELECT <include refid="columns"/> FROM addresses
+    WHERE user_id = #{userId}
+    ORDER BY is_default DESC, created_at DESC, id DESC
+  </select>
+
+  <select id="findByIdAndUser" resultType="com.flashopify.auth.domain.Address">
+    SELECT <include refid="columns"/> FROM addresses WHERE id = #{id} AND user_id = #{userId}
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO addresses (user_id, receiver_name, phone, address_line, ward, district, city, is_default, created_at)
+    VALUES (#{userId}, #{receiverName}, #{phone}, #{addressLine}, #{ward}, #{district}, #{city}, #{defaultAddress}, #{createdAt})
+  </insert>
+
+  <update id="update">
+    UPDATE addresses SET
+      receiver_name = #{receiverName},
+      phone = #{phone},
+      address_line = #{addressLine},
+      ward = #{ward},
+      district = #{district},
+      city = #{city},
+      is_default = #{defaultAddress}
+    WHERE id = #{id} AND user_id = #{userId}
+  </update>
+
+  <delete id="deleteByIdAndUser">
+    DELETE FROM addresses WHERE id = #{id} AND user_id = #{userId}
+  </delete>
+
+  <update id="clearDefault">
+    UPDATE addresses SET is_default = FALSE WHERE user_id = #{userId} AND is_default = TRUE
+  </update>
+
+  <update id="setDefault">
+    UPDATE addresses SET is_default = TRUE WHERE id = #{id} AND user_id = #{userId}
+  </update>
+
+  <select id="countByUser" resultType="int">
+    SELECT COUNT(*) FROM addresses WHERE user_id = #{userId}
+  </select>
+
+  <select id="findNewestByUser" resultType="com.flashopify.auth.domain.Address">
+    SELECT <include refid="columns"/> FROM addresses
+    WHERE user_id = #{userId}
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  </select>
+
+  <delete id="deleteAllByUser">
+    DELETE FROM addresses WHERE user_id = #{userId}
+  </delete>
+</mapper>
