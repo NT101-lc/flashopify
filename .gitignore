@@ -42,3 +42,8 @@ test-results/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Installed agent skills (local only)
+.agents/
+.claude/skills/
+skills-lock.json
