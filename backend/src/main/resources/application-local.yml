@@ -22,3 +22,6 @@ management:
   endpoint:
     health:
       show-details: always
+  security:
+    jwt:
+      secret: ${JWT_SECRET:local-dev-only-change-me-32-bytes-minimum!!}

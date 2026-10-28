@@ -21,57 +21,57 @@ Label: `backend` · `frontend` · `infra` · `docs` · `test`. Ước lượng: 
 ### FLS-001 · Docker Compose cho môi trường local
 **Label:** infra · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** SRS 2.3, OR-04, 6.2
 Một lệnh `docker compose up` chạy đủ hạ tầng local: MySQL 8, Redis 7, Kafka (KRaft), MinIO, PostgreSQL 16 + pgvector, Mailhog. Có healthcheck cho từng service.
-- [ ] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh
+- [x] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh _(file thực tế: `docker-compose.yml`, thêm kafka-ui)_
 - [ ] MinIO tự tạo bucket `flashopify`; Postgres bật extension `vector`
-- [ ] `.env.example` bổ sung biến còn thiếu; không commit `.env`
+- [x] `.env.example` bổ sung biến còn thiếu; không commit `.env` _(`infra/docker/.env.example`)_
 - [ ] README ghi lệnh khởi động/dừng/xoá volume
 
 ### FLS-002 · Skeleton Spring Boot modular monolith
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001 · **Liên kết:** HNFR-03, HNFR-05, OR-09, ADR-0001
 Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/service/mapper/domain/dto`), profile `local/test/prod`, Actuator, springdoc phục vụ `docs/api/openapi.yaml`.
-- [ ] `./mvnw verify` chạy xanh; app khởi động với profile `local`
-- [ ] `/actuator/health` trả UP (MySQL, Redis)
+- [x] `./mvnw verify` chạy xanh; app khởi động với profile `local`
+- [x] `/actuator/health` trả UP (MySQL, Redis)
 - [ ] ArchUnit test: module không truy cập `mapper` của module khác
 - [ ] Swagger UI hiển thị spec
 
 ### FLS-003 · Flyway baseline + cấu hình MyBatis
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-04, ADR-0004, ADR-0005
 Đưa `V1__init.sql` (MySQL) và `V1__ai_init.sql` (Postgres) vào `db/migration`, cấu hình 2 datasource và MyBatis (camelCase mapping, type handler cho enum).
-- [ ] App khởi động tự migrate cả 2 DB
-- [ ] Integration test Testcontainers xác nhận đủ bảng
-- [ ] Datasource Postgres tách riêng, chỉ module `ai` dùng
+- [x] App khởi động tự migrate cả 2 DB
+- [x] Integration test Testcontainers xác nhận đủ bảng
+- [x] Datasource Postgres tách riêng, chỉ module `ai` dùng
 
 ### FLS-004 · Xử lý lỗi chung + traceId
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-08, SRS 6.4, SEC-10, SEC-11
 `@RestControllerAdvice` trả `ErrorResponse { code, message, traceId, timestamp, fieldErrors }`, enum `ErrorCode` khớp OpenAPI; filter sinh `X-Trace-Id` và đưa vào MDC.
-- [ ] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
-- [ ] `BusinessException(ErrorCode)` map đúng HTTP status
-- [ ] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
+- [x] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
+- [x] `BusinessException(ErrorCode)` map đúng HTTP status
+- [x] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
 - [ ] Unit test cho advice
 
 ### FLS-005 · Đăng ký + đăng nhập JWT + khoá tài khoản
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-01, UC-01, UC-02, SEC-01, SEC-05, TC-10, ADR-0007
 `POST /auth/register`, `POST /auth/login`: BCrypt cost 10, access token 15 phút, đếm sai mật khẩu, khoá 15 phút sau 5 lần.
-- [ ] Email trùng → 409 `EMAIL_ALREADY_EXISTS`
-- [ ] Sai mật khẩu → 401; lần thứ 5 → 423 `ACCOUNT_LOCKED` (TC-10)
-- [ ] Đăng nhập thành công reset bộ đếm, trả `TokenResponse`
-- [ ] Coverage service auth ≥ 70%
+- [x] Email trùng → 409 `EMAIL_ALREADY_EXISTS`
+- [x] Sai mật khẩu → 401; lần thứ 5 → 423 `ACCOUNT_LOCKED` (TC-10)
+- [x] Đăng nhập thành công reset bộ đếm, trả `TokenResponse`
+- [x] Coverage service auth ≥ 70%
 
 ### FLS-006 · Refresh token, logout, đổi mật khẩu
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** SEC-02, SEC-03, ADR-0007
 Refresh token 7 ngày lưu Redis, rotate mỗi lần dùng, phát hiện reuse; `POST /auth/refresh`, `POST /auth/logout`, `PUT /me/password`.
-- [ ] Refresh token cũ dùng lại → 401 và thu hồi mọi phiên của user
-- [ ] Logout xoá token khỏi Redis
-- [ ] Đổi mật khẩu thu hồi toàn bộ refresh token
-- [ ] Integration test với Testcontainers Redis
+- [x] Refresh token cũ dùng lại → 401 và thu hồi mọi phiên của user
+- [x] Logout xoá token khỏi Redis
+- [x] Đổi mật khẩu thu hồi toàn bộ refresh token
+- [x] Integration test với Testcontainers Redis
 
 ### FLS-007 · Phân quyền + hồ sơ + địa chỉ giao hàng
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-005 · **Liên kết:** HFR-01, SEC-04, SEC-07, OR-13
 Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELETE /me`, CRUD `/me/addresses`.
-- [ ] Endpoint ADMIN với token CUSTOMER → 403
-- [ ] userId luôn lấy từ token; sửa địa chỉ của người khác → 404
-- [ ] Chỉ một địa chỉ `isDefault`
-- [ ] Xoá tài khoản: status DELETED, ẩn danh dữ liệu, thu hồi token
+- [x] Endpoint ADMIN với token CUSTOMER → 403
+- [x] userId luôn lấy từ token; sửa địa chỉ của người khác → 404
+- [x] Chỉ một địa chỉ `isDefault`
+- [x] Xoá tài khoản: status DELETED, ẩn danh dữ liệu, thu hồi token
 
 ### FLS-008 · API catalog công khai + cache
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-02, UC-03, HNFR-01
@@ -115,17 +115,17 @@ Sinh 1 admin (thông tin từ biến môi trường) và 1.000 customer có đ�
 ### FLS-013 · Scaffold frontend React + codegen OpenAPI
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** OR-09, HFR-10, SRS 2.3
 Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query, ESLint/Prettier, cấu trúc `src/features/*`, sinh type + client từ `openapi.yaml`.
-- [ ] `npm run gen:api` sinh type, không viết tay DTO
+- [x] `npm run gen:api` sinh type, không viết tay DTO
 - [ ] API client có interceptor đính token và parse `ErrorResponse`
-- [ ] `npm run lint`, `npm test` (Vitest) chạy xanh
-- [ ] Theme màu/logo riêng, không dùng asset Shopify
+- [x] `npm run lint`, `npm test` (Vitest) chạy xanh
+- [x] Theme màu/logo riêng, không dùng asset Shopify
 
 ### FLS-014 · CI GitHub Actions
 **Label:** infra · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002, FLS-013 · **Liên kết:** HNFR-05, OR-10
 Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, Redocly lint OpenAPI, báo cáo coverage.
-- [ ] Chạy trên PR và push `main`
+- [x] Chạy trên PR và push `main`
 - [ ] Fail nếu coverage service < 70%
-- [ ] Cache Maven/npm
+- [x] Cache Maven/npm
 
 ---
 

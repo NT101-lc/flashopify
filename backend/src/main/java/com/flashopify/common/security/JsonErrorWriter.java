@@ -11,6 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
@@ -29,7 +32,29 @@ public class JsonErrorWriter implements AuthenticationEntryPoint, AccessDeniedHa
   public void commence(
       HttpServletRequest request, HttpServletResponse response, AuthenticationException ex)
       throws IOException {
+    if (ex instanceof InvalidBearerTokenException) {
+      if (isExpired(ex)) {
+        write(response, HttpStatus.UNAUTHORIZED, ErrorCode.TOKEN_EXPIRED, "Access token expired");
+      } else {
+        write(response, HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_TOKEN, "Invalid access token");
+      }
+      return;
+    }
+    if (ex instanceof OAuth2AuthenticationException) {
+      write(response, HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_TOKEN, "Invalid access token");
+      return;
+    }
     write(response, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "Authentication required");
+  }
+
+  private static boolean isExpired(Throwable ex) {
+    for (Throwable t = ex; t != null; t = t.getCause()) {
+      if (t instanceof JwtValidationException jve) {
+        return jve.getErrors().stream()
+            .anyMatch(e -> e.getDescription() != null && e.getDescription().contains("expired"));
+      }
+    }
+    return false;
   }
 
   @Override

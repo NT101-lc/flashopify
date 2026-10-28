@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.auth.mapper.UserMapper">
+
+  <sql id="columns">
+    id, email, password_hash, full_name, phone, role, status,
+    failed_login_count, locked_until, created_at, updated_at
+  </sql>
+
+  <select id="findByEmail" resultType="com.flashopify.auth.domain.User">
+    SELECT <include refid="columns"/> FROM users WHERE email = #{email}
+  </select>
+
+  <select id="findById" resultType="com.flashopify.auth.domain.User">
+    SELECT <include refid="columns"/> FROM users WHERE id = #{id}
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO users (email, password_hash, full_name, phone, role, status, created_at, updated_at)
+    VALUES (#{email}, #{passwordHash}, #{fullName}, #{phone}, #{role}, #{status}, #{createdAt}, #{updatedAt})
+  </insert>
+
+  <!-- MySQL evaluates SET left to right: locked_until must come before failed_login_count. -->
+  <update id="recordFailedLogin">
+    UPDATE users SET
+      locked_until = CASE WHEN failed_login_count + 1 >= #{maxAttempts} THEN #{lockUntil} ELSE locked_until END,
+      failed_login_count = CASE WHEN failed_login_count + 1 >= #{maxAttempts} THEN 0 ELSE failed_login_count + 1 END
+    WHERE id = #{id}
+  </update>
+
+  <update id="resetLoginFailures">
+    UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = #{id}
+  </update>
+
+  <update id="updatePassword">
+    UPDATE users SET password_hash = #{passwordHash} WHERE id = #{id}
+  </update>
+  <select id="lockForUpdate" resultType="com.flashopify.auth.domain.User">
+    SELECT <include refid="columns"/> FROM users WHERE id = #{id} FOR UPDATE
+  </select>
+
+  <update id="updateProfile">
+    UPDATE users
+    <set>
+      <if test="fullName != null">full_name = #{fullName},</if>
+      <if test="phone != null">phone = #{phone},</if>
+    </set>
+    WHERE id = #{id}
+  </update>
+
+  <update id="anonymize">
+    UPDATE users SET
+      email = #{email},
+      full_name = #{fullName},
+      password_hash = #{passwordHash},
+      phone = NULL,
+      status = 'DELETED',
+      failed_login_count = 0,
+      locked_until = NULL
+    WHERE id = #{id}
+  </update>
+</mapper>
