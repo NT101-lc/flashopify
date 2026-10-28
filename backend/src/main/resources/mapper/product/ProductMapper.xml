@@ -101,6 +101,10 @@
     SELECT <include refid="adminColumns"/> FROM products p WHERE p.id = #{id} FOR SHARE
   </select>
 
+  <update id="updateThumbnail">
+    UPDATE products SET thumbnail_url = #{url} WHERE id = #{id}
+  </update>
+
   <update id="softDelete">
     UPDATE products SET status = 'DELETED' WHERE id = #{id}
   </update>
