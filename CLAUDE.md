@@ -94,6 +94,7 @@ Run from the repo root unless the command starts with `cd`.
 | Task                | Command |
 |---------------------|---------|
 | Gate (deterministic)| `bash scripts/gate.sh` |
+| Coverage check      | `cd backend && ./mvnw verify` (fails if any `*.service` package < 70% lines; report in `backend/target/site/jacoco`) |
 | Start infra         | `docker compose -f infra/docker/docker-compose.yml up -d --wait` |
 | Stop infra          | `docker compose -f infra/docker/docker-compose.yml down` (add `-v` to wipe data) |
 | Run backend         | `cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local` |

@@ -124,7 +124,7 @@ Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query,
 **Label:** infra · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002, FLS-013 · **Liên kết:** HNFR-05, OR-10
 Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, Redocly lint OpenAPI, báo cáo coverage.
 - [x] Chạy trên PR và push `main`
-- [ ] Fail nếu coverage service < 70%
+- [x] Fail nếu coverage service < 70%
 - [x] Cache Maven/npm
 
 ---

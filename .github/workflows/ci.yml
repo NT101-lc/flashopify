@@ -28,6 +28,12 @@ jobs:
       # Unit tests + Testcontainers integration tests (Docker is available on ubuntu runners).
       - name: Build and test
         run: ./mvnw -B verify
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/target/site/jacoco/
       - name: Style (spotless + checkstyle)
         run: ./mvnw -B spotless:check checkstyle:check
 
