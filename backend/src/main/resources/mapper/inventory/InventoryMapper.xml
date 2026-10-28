@@ -8,9 +8,26 @@
     SELECT <include refid="columns"/> FROM inventory WHERE product_id = #{productId}
   </select>
 
+  <select id="findByProductIdForShare" resultType="com.flashopify.inventory.domain.Inventory">
+    SELECT <include refid="columns"/> FROM inventory WHERE product_id = #{productId} FOR SHARE
+  </select>
+
   <select id="findByProductIds" resultType="com.flashopify.inventory.domain.Inventory">
     SELECT <include refid="columns"/> FROM inventory
     WHERE product_id IN
     <foreach collection="productIds" item="id" open="(" separator="," close=")">#{id}</foreach>
   </select>
+
+  <insert id="insert">
+    INSERT INTO inventory (product_id, quantity, reserved, version)
+    VALUES (#{productId}, #{quantity}, 0, 0)
+  </insert>
+
+  <update id="updateQuantity">
+    UPDATE inventory
+    SET quantity = #{quantity}, version = version + 1
+    WHERE product_id = #{productId}
+      AND version = #{expectedVersion}
+      AND reserved &lt;= #{quantity}
+  </update>
 </mapper>

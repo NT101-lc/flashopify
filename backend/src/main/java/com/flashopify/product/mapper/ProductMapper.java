@@ -1,5 +1,6 @@
 package com.flashopify.product.mapper;
 
+import com.flashopify.product.domain.AdminProductSearchCriteria;
 import com.flashopify.product.domain.Product;
 import com.flashopify.product.domain.ProductSearchCriteria;
 import java.util.Collection;
@@ -19,4 +20,31 @@ public interface ProductMapper {
 
   /** Distinct non-null brands of ACTIVE products, alphabetical; null categoryIds = all. */
   List<String> findDistinctActiveBrands(@Param("categoryIds") Collection<Long> categoryIds);
+
+  // ---- admin side: any status ----
+
+  /**
+   * Inserts and fills the generated id. Throws DuplicateKeyException on uk_products_sku /
+   * uk_products_slug.
+   */
+  int insert(Product product);
+
+  /** Updates the editable columns (not source_id, created_at). */
+  int update(Product product);
+
+  /** Any status, with the category join. */
+  Product findById(@Param("id") long id);
+
+  /** {@code SELECT ... FOR UPDATE} on the product row only (no joins); any status. */
+  Product lockById(@Param("id") long id);
+
+  /** {@code SELECT ... FOR SHARE} on the product row only; any status. */
+  Product lockByIdShared(@Param("id") long id);
+
+  int softDelete(@Param("id") long id);
+
+  /** Reads inventory with a LEFT JOIN for sort/filter only (ADR-0009); never writes it. */
+  List<Product> adminSearch(@Param("c") AdminProductSearchCriteria criteria);
+
+  long adminCount(@Param("c") AdminProductSearchCriteria criteria);
 }

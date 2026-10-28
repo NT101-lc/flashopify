@@ -66,4 +66,85 @@
     </where>
     ORDER BY p.brand ASC
   </select>
+
+  <!-- ===== admin: any status ===== -->
+
+  <sql id="adminColumns">
+    p.id, p.category_id, p.source_id, p.sku, p.name, p.slug, p.description, p.brand, p.price,
+    p.rating, p.thumbnail_url, p.status, p.created_at, p.updated_at
+  </sql>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO products (category_id, sku, name, slug, description, brand, price, thumbnail_url, status)
+    VALUES (#{categoryId}, #{sku}, #{name}, #{slug}, #{description}, #{brand}, #{price},
+            #{thumbnailUrl}, #{status})
+  </insert>
+
+  <update id="update">
+    UPDATE products
+    SET category_id = #{categoryId}, sku = #{sku}, name = #{name}, slug = #{slug},
+        description = #{description}, brand = #{brand}, price = #{price}, status = #{status}
+    WHERE id = #{id}
+  </update>
+
+  <select id="findById" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="columns"/>, p.source_id
+    FROM products p JOIN categories c ON c.id = p.category_id
+    WHERE p.id = #{id}
+  </select>
+
+  <select id="lockById" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="adminColumns"/> FROM products p WHERE p.id = #{id} FOR UPDATE
+  </select>
+
+  <select id="lockByIdShared" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="adminColumns"/> FROM products p WHERE p.id = #{id} FOR SHARE
+  </select>
+
+  <update id="softDelete">
+    UPDATE products SET status = 'DELETED' WHERE id = #{id}
+  </update>
+
+  <sql id="adminFilters">
+    <where>
+      <if test="c.q != null and c.q != ''">
+        AND (p.name LIKE CONCAT('%', #{c.q}, '%')
+          OR p.sku LIKE CONCAT('%', #{c.q}, '%')
+          OR p.brand LIKE CONCAT('%', #{c.q}, '%'))
+      </if>
+      <if test="c.status != null">AND p.status = #{c.status}</if>
+      <if test="c.categoryId != null">AND p.category_id = #{c.categoryId}</if>
+      <if test="c.lowStock != null">
+        AND COALESCE(i.quantity - i.reserved, 0) &lt;= #{c.lowStock}
+      </if>
+    </where>
+  </sql>
+
+  <select id="adminSearch" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="adminColumns"/>
+    FROM products p
+    <if test="c.lowStock != null or c.sort.name() == 'AVAILABLE_ASC'">
+      LEFT JOIN inventory i ON i.product_id = p.id
+    </if>
+    <include refid="adminFilters"/>
+    ORDER BY
+    <choose>
+      <when test="c.sort.name() == 'CREATED_AT_DESC'">p.created_at DESC, p.id ASC</when>
+      <when test="c.sort.name() == 'NAME_ASC'">p.name ASC, p.id ASC</when>
+      <when test="c.sort.name() == 'PRICE_ASC'">p.price ASC, p.id ASC</when>
+      <when test="c.sort.name() == 'PRICE_DESC'">p.price DESC, p.id ASC</when>
+      <when test="c.sort.name() == 'AVAILABLE_ASC'">COALESCE(i.quantity - i.reserved, 0) ASC, p.id ASC</when>
+      <otherwise>p.updated_at DESC, p.id ASC</otherwise>
+    </choose>
+    LIMIT #{c.limit} OFFSET #{c.offset}
+  </select>
+
+  <select id="adminCount" resultType="long">
+    SELECT COUNT(*)
+    FROM products p
+    <if test="c.lowStock != null">
+      LEFT JOIN inventory i ON i.product_id = p.id
+    </if>
+    <include refid="adminFilters"/>
+  </select>
 </mapper>

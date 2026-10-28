@@ -26,6 +26,7 @@ public class Product {
   private BigDecimal price;
   private BigDecimal rating;
   private String thumbnailUrl;
+  private Integer sourceId;
   private ProductStatus status;
   private Instant createdAt;
   private Instant updatedAt;

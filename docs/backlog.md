@@ -84,10 +84,10 @@ Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELET
 ### FLS-009 · Admin CRUD sản phẩm + cập nhật tồn kho
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-007, FLS-008 · **Liên kết:** HFR-02, HFR-03, UC-10, OR-05
 `/admin/products` list/create/get/update/delete mềm; `PUT /admin/products/{id}/inventory` dùng optimistic lock.
-- [ ] SKU/slug trùng → 409
-- [ ] Xoá đặt status DELETED; chặn nếu đang trong chiến dịch
-- [ ] Sai `version` → 409 `CONCURRENT_MODIFICATION`; không cho `quantity < reserved`
-- [ ] Mapper test với Testcontainers MySQL
+- [x] SKU/slug trùng → 409
+- [x] Xoá đặt status DELETED; chặn nếu đang trong chiến dịch
+- [x] Sai `version` → 409 `CONCURRENT_MODIFICATION`; không cho `quantity < reserved`
+- [x] Mapper test với Testcontainers MySQL
 
 ### FLS-010 · Upload ảnh sản phẩm qua presigned URL
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001, FLS-009 · **Liên kết:** OR-06, UC-10
@@ -138,6 +138,7 @@ CRUD `/admin/flash-sales`: validate giờ, số lượng ≤ tồn kho khả d�
 - [ ] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
 - [ ] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
 - [ ] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
+- [ ] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
 
 ### FLS-016 · Warm-up Redis và vòng đời chiến dịch
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-015 · **Liên kết:** UC-09, HFR-04, ADR-0002
@@ -146,6 +147,7 @@ Scheduler nạp `fs:stock:{itemId}`, giờ mở/đóng, limit vào Redis trướ
 - [ ] Warm-up chạy lại không ghi đè kho đang bán
 - [ ] Hết giờ: status ENDED, ghi `sold` về MySQL
 - [ ] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
+- [ ] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
 
 ### FLS-017 · Lua script trừ kho flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-016 · **Liên kết:** HNFR-02, UC-05, TC-01, TC-02, TC-04, ADR-0002
