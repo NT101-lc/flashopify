@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.inventory.mapper.InventoryMapper">
+
+  <sql id="columns">product_id, quantity, reserved, version, updated_at</sql>
+
+  <select id="findByProductId" resultType="com.flashopify.inventory.domain.Inventory">
+    SELECT <include refid="columns"/> FROM inventory WHERE product_id = #{productId}
+  </select>
+
+  <select id="findByProductIds" resultType="com.flashopify.inventory.domain.Inventory">
+    SELECT <include refid="columns"/> FROM inventory
+    WHERE product_id IN
+    <foreach collection="productIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+</mapper>

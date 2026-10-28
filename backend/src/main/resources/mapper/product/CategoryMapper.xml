@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.product.mapper.CategoryMapper">
+
+  <sql id="columns">id, parent_id, slug, name, created_at</sql>
+
+  <select id="findAll" resultType="com.flashopify.product.domain.Category">
+    SELECT <include refid="columns"/> FROM categories ORDER BY name ASC, id ASC
+  </select>
+
+  <select id="findBySlug" resultType="com.flashopify.product.domain.Category">
+    SELECT <include refid="columns"/> FROM categories WHERE slug = #{slug}
+  </select>
+
+  <select id="countActiveProductsByCategory" resultType="com.flashopify.product.domain.CategoryProductCount">
+    SELECT category_id AS categoryId, COUNT(*) AS productCount
+    FROM products WHERE status = 'ACTIVE' GROUP BY category_id
+  </select>
+</mapper>

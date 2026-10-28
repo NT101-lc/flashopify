@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.product.mapper.ProductMapper">
+
+  <sql id="columns">
+    p.id, p.category_id, c.slug AS category_slug, c.name AS category_name, p.sku, p.name, p.slug,
+    p.description, p.brand, p.price, p.rating, p.thumbnail_url, p.status, p.created_at, p.updated_at
+  </sql>
+
+  <sql id="filters">
+    FROM products p JOIN categories c ON c.id = p.category_id
+    <where>
+      p.status = 'ACTIVE'
+      <if test="c.q != null and c.q != ''">
+        AND (p.name LIKE CONCAT('%', #{c.q}, '%')
+          OR p.brand LIKE CONCAT('%', #{c.q}, '%')
+          OR p.description LIKE CONCAT('%', #{c.q}, '%'))
+      </if>
+      <if test="c.categoryIds != null and !c.categoryIds.isEmpty()">
+        AND p.category_id IN
+        <foreach collection="c.categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+      </if>
+      <if test="c.brands != null and !c.brands.isEmpty()">
+        AND p.brand IN
+        <foreach collection="c.brands" item="b" open="(" separator="," close=")">#{b}</foreach>
+      </if>
+      <if test="c.minPrice != null">AND p.price &gt;= #{c.minPrice}</if>
+      <if test="c.maxPrice != null">AND p.price &lt;= #{c.maxPrice}</if>
+      <if test="c.minRating != null">AND p.rating &gt;= #{c.minRating}</if>
+    </where>
+  </sql>
+
+  <select id="searchActive" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="columns"/>
+    <include refid="filters"/>
+    ORDER BY
+    <choose>
+      <when test="c.sort.name() == 'PRICE_ASC'">p.price ASC, p.id ASC</when>
+      <when test="c.sort.name() == 'PRICE_DESC'">p.price DESC, p.id ASC</when>
+      <when test="c.sort.name() == 'RATING_DESC'">p.rating DESC, p.id ASC</when>
+      <when test="c.sort.name() == 'NAME_ASC'">p.name ASC, p.id ASC</when>
+      <otherwise>p.created_at DESC, p.id ASC</otherwise>
+    </choose>
+    LIMIT #{c.limit} OFFSET #{c.offset}
+  </select>
+
+  <select id="countActive" resultType="long">
+    SELECT COUNT(*)
+    <include refid="filters"/>
+  </select>
+
+  <select id="findActiveBySlug" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="columns"/>
+    FROM products p JOIN categories c ON c.id = p.category_id
+    WHERE p.slug = #{slug} AND p.status = 'ACTIVE'
+  </select>
+
+  <select id="findDistinctActiveBrands" resultType="string">
+    SELECT DISTINCT p.brand FROM products p
+    <where>
+      p.status = 'ACTIVE' AND p.brand IS NOT NULL
+      <if test="categoryIds != null and !categoryIds.isEmpty()">
+        AND p.category_id IN
+        <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+      </if>
+    </where>
+    ORDER BY p.brand ASC
+  </select>
+</mapper>

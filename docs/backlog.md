@@ -76,10 +76,10 @@ Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELET
 ### FLS-008 · API catalog công khai + cache
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-02, UC-03, HNFR-01
 `GET /categories`, `GET /products` (q, category, brand, giá, rating, sort, page), `GET /products/brands`, `GET /products/{slug}` cache Redis.
-- [ ] Sort chỉ nhận giá trị whitelist (không `${}` từ input)
-- [ ] `PageResponse` đúng `page/size/totalItems/totalPages`
-- [ ] Chi tiết sản phẩm cache Redis, bị xoá khi admin sửa
-- [ ] Sản phẩm INACTIVE/DELETED không xuất hiện
+- [x] Sort chỉ nhận giá trị whitelist (không `${}` từ input)
+- [x] `PageResponse` đúng `page/size/totalItems/totalPages`
+- [x] Chi tiết sản phẩm cache Redis, bị xoá khi admin sửa _(evict wired to admin in FLS-009)_
+- [x] Sản phẩm INACTIVE/DELETED không xuất hiện
 
 ### FLS-009 · Admin CRUD sản phẩm + cập nhật tồn kho
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-007, FLS-008 · **Liên kết:** HFR-02, HFR-03, UC-10, OR-05

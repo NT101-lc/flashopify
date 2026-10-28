@@ -33,6 +33,10 @@ app:
       max-failed-attempts: 5
       lock-duration: 15m
 
+  catalog:
+    cache:
+      detail-ttl: 10m
+
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
