@@ -1,10 +1,14 @@
 package com.flashopify.product.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flashopify.product.domain.AdminProductSearchCriteria;
+import com.flashopify.product.domain.AdminProductSort;
 import com.flashopify.product.domain.Product;
 import com.flashopify.product.domain.ProductSearchCriteria;
 import com.flashopify.product.domain.ProductSort;
+import com.flashopify.product.domain.ProductStatus;
 import com.flashopify.support.AbstractIntegrationTest;
 import com.flashopify.support.CatalogFixtures;
 import java.math.BigDecimal;
@@ -13,6 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class ProductMapperIT extends AbstractIntegrationTest {
@@ -134,5 +139,104 @@ class ProductMapperIT extends AbstractIntegrationTest {
         .filteredOn(x -> x.getCategoryId() == cat)
         .singleElement()
         .satisfies(x -> assertThat(x.getProductCount()).isEqualTo(4));
+  }
+
+  // ---- FLS-009 admin side: any status ----
+
+  private Product newProduct(String sku, String slug, String name, ProductStatus status) {
+    return Product.builder()
+        .categoryId(cat)
+        .sku(sku)
+        .name(name)
+        .slug(slug)
+        .brand(brandOne)
+        .price(new BigDecimal("9.99"))
+        .status(status)
+        .build();
+  }
+
+  @Test
+  void tc17InsertAssignsIdAndReadsBackAndRejectsDuplicateSku() {
+    String sfx = CatalogFixtures.rnd();
+    Product p = newProduct("SKU-INS-" + sfx, "ins-" + sfx, "Inserted", ProductStatus.ACTIVE);
+    productMapper.insert(p);
+
+    assertThat(p.getId()).isNotNull();
+    Product back = productMapper.findById(p.getId());
+    assertThat(back.getSku()).isEqualTo("SKU-INS-" + sfx);
+    assertThat(back.getName()).isEqualTo("Inserted");
+    assertThat(back.getCategorySlug()).isEqualTo(new CatalogFixtures(jdbc).categorySlug(cat));
+    assertThat(back.getPrice()).isEqualByComparingTo("9.99");
+    assertThat(back.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+
+    Product dup = newProduct("SKU-INS-" + sfx, "other-" + sfx, "Dup", ProductStatus.ACTIVE);
+    assertThatThrownBy(() -> productMapper.insert(dup))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("uk_products_sku");
+  }
+
+  @Test
+  void tc17UpdateChangesEditableColumnsOnly() {
+    Product before = productMapper.findById(a);
+    Product changed =
+        Product.builder()
+            .id(a)
+            .categoryId(cat)
+            .sku(before.getSku())
+            .name("Renamed Alpha")
+            .slug(before.getSlug())
+            .brand(brandOne)
+            .price(new BigDecimal("11.00"))
+            .status(ProductStatus.INACTIVE)
+            .build();
+    assertThat(productMapper.update(changed)).isEqualTo(1);
+
+    Product after = productMapper.findById(a);
+    assertThat(after.getName()).isEqualTo("Renamed Alpha");
+    assertThat(after.getPrice()).isEqualByComparingTo("11.00");
+    assertThat(after.getStatus()).isEqualTo(ProductStatus.INACTIVE);
+    assertThat(after.getSourceId()).isEqualTo(before.getSourceId());
+    assertThat(after.getCreatedAt()).isEqualTo(before.getCreatedAt());
+  }
+
+  @Test
+  void tc17LockByIdReturnsAnyStatusWithoutCategoryJoin() {
+    Product deletedRow = productMapper.lockById(deleted);
+    assertThat(deletedRow).isNotNull();
+    assertThat(deletedRow.getStatus()).isEqualTo(ProductStatus.DELETED);
+    assertThat(deletedRow.getCategorySlug()).isNull();
+    assertThat(productMapper.lockById(Long.MAX_VALUE)).isNull();
+  }
+
+  @Test
+  void tc17SoftDeleteMarksRowDeletedAndHidesFromPublicReads() {
+    String slug = new CatalogFixtures(jdbc).slugOf(b);
+    assertThat(productMapper.softDelete(b)).isEqualTo(1);
+
+    assertThat(productMapper.findById(b).getStatus()).isEqualTo(ProductStatus.DELETED);
+    assertThat(productMapper.findActiveBySlug(slug)).isNull();
+    assertThat(productMapper.lockById(b)).isNotNull();
+  }
+
+  @Test
+  void tc17AdminSearchFiltersByCategoryStatusAndIncludesDeleted() {
+    AdminProductSearchCriteria.AdminProductSearchCriteriaBuilder base =
+        AdminProductSearchCriteria.builder()
+            .categoryId(cat)
+            .sort(AdminProductSort.NAME_ASC)
+            .offset(0)
+            .limit(50);
+
+    List<Long> all = productMapper.adminSearch(base.build()).stream().map(Product::getId).toList();
+    // Names: Alpha, Bravo, Charlie, Delta, Echo (inactive), Foxtrot (deleted).
+    assertThat(all).containsExactly(a, b, c, d, inactive, deleted).as("all statuses, by name");
+    assertThat(productMapper.adminCount(base.build())).isEqualTo(6);
+
+    assertThat(
+            productMapper.adminSearch(base.status(ProductStatus.DELETED).build()).stream()
+                .map(Product::getId)
+                .toList())
+        .containsExactly(deleted);
+    assertThat(productMapper.adminCount(base.status(ProductStatus.INACTIVE).build())).isEqualTo(1);
   }
 }

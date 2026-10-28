@@ -16,4 +16,8 @@
     SELECT category_id AS categoryId, COUNT(*) AS productCount
     FROM products WHERE status = 'ACTIVE' GROUP BY category_id
   </select>
+
+  <select id="existsById" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM categories WHERE id = #{id})
+  </select>
 </mapper>

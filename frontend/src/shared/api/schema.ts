@@ -528,7 +528,8 @@ export interface paths {
         post?: never;
         /**
          * Soft-delete a product
-         * @description Sets status DELETED. Rejected while the product is in a SCHEDULED or RUNNING campaign.
+         * @description Sets status DELETED. Idempotent: deleting an already DELETED product returns 204.
+         *     Rejected with 409 `PRODUCT_IN_ACTIVE_CAMPAIGN` while the product is in a SCHEDULED or RUNNING campaign.
          */
         delete: operations["adminDeleteProduct"];
         options?: never;
@@ -1227,7 +1228,7 @@ export interface components {
             /** @description quantity - reserved. */
             available: number;
             /** @description Optimistic-lock version. */
-            version?: number;
+            version: number;
         };
         AdminProductSummary: {
             /** Format: int64 */
@@ -1263,6 +1264,7 @@ export interface components {
             categoryId: number;
             sku: string;
             name: string;
+            /** @description Unique. The value `brands` is reserved (public route `/products/brands`) and rejected with 400. */
             slug: string;
             description?: string;
             brand?: string;
@@ -3393,6 +3395,23 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            /** @description The category does not exist (`CATEGORY_NOT_FOUND`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "CATEGORY_NOT_FOUND",
+                     *       "message": "Category not found",
+                     *       "traceId": "a1b2c3d4",
+                     *       "timestamp": "2026-10-27T10:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description SKU or slug already used (`DUPLICATE_SKU`, `DUPLICATE_SLUG`). */
             409: {
                 headers: {
@@ -3532,8 +3551,40 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            /** @description Product (`PRODUCT_NOT_FOUND`, also for DELETED products) or category (`CATEGORY_NOT_FOUND`) does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "PRODUCT_NOT_FOUND",
+                     *       "message": "Product not found",
+                     *       "traceId": "a1b2c3d4",
+                     *       "timestamp": "2026-10-27T10:05:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description SKU or slug already used (`DUPLICATE_SKU`, `DUPLICATE_SLUG`), or the product is in a SCHEDULED or RUNNING campaign and the status would change from ACTIVE to INACTIVE (`PRODUCT_IN_ACTIVE_CAMPAIGN`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "DUPLICATE_SLUG",
+                     *       "message": "Slug already exists",
+                     *       "traceId": "a1b2c3d4",
+                     *       "timestamp": "2026-10-27T10:05:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     adminDeleteProduct: {
@@ -3604,7 +3655,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description Version mismatch (`CONCURRENT_MODIFICATION`) or below reserved (`INSUFFICIENT_STOCK`). */
+            /** @description Version mismatch (`CONCURRENT_MODIFICATION`), quantity below reserved (`INSUFFICIENT_STOCK`) or the product is DELETED (`PRODUCT_NOT_AVAILABLE`). */
             409: {
                 headers: {
                     [name: string]: unknown;

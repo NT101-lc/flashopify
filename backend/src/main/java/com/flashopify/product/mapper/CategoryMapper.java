@@ -15,4 +15,6 @@ public interface CategoryMapper {
   Category findBySlug(@Param("slug") String slug);
 
   List<CategoryProductCount> countActiveProductsByCategory();
+
+  boolean existsById(@Param("id") long id);
 }

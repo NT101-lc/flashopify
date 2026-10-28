@@ -25,3 +25,4 @@ Architecture Decision Records (template: [0000-template.md](adr/0000-template.md
 | [0006](adr/0006-seed-du-lieu-tu-dummyjson.md) | One-off seed from DummyJSON, images copied to object storage |
 | [0007](adr/0007-jwt-access-refresh-token.md) | JWT access token (15 min) + rotating refresh token in Redis (7 days) |
 | [0008](adr/0008-cache-aside-product-detail.md) | Cache-aside for product detail in Redis (static part only), live stock overlay, evict after commit |
+| [0009](adr/0009-admin-product-list-reads-inventory.md) | Admin product list may LEFT JOIN `inventory` read-only for sort/filter (narrow exception to ADR-0001) |
