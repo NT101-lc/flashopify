@@ -108,9 +108,9 @@ Job profile `seed`: import category, ~194 sản phẩm, tải ảnh lên object 
 ### FLS-012 · Seed admin và 1.000 customer
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** OR-07, SRS 7.2
 Sinh 1 admin (thông tin từ biến môi trường) và 1.000 customer có địa chỉ, xuất file token/credential test cho k6.
-- [ ] Idempotent khi chạy lại
-- [ ] Mật khẩu hash BCrypt; không commit credential thật
-- [ ] Xuất `infra/k6/users.csv` (bị gitignore)
+- [x] Idempotent khi chạy lại
+- [x] Mật khẩu hash BCrypt; không commit credential thật
+- [x] Xuất `infra/k6/users.csv` (bị gitignore)
 
 ### FLS-013 · Scaffold frontend React + codegen OpenAPI
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** OR-09, HFR-10, SRS 2.3

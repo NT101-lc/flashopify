@@ -1,4 +1,4 @@
-# Seed job (FLS-011): `bash scripts/seed/seed.sh` runs with profiles local,seed. No web server.
+# Seed job (FLS-011, FLS-012): `bash scripts/seed/seed.sh` runs with profiles local,seed. No web server.
 spring:
   main:
     web-application-type: none
@@ -8,6 +8,17 @@ app:
     auto-run: true
     products:
       enabled: true
+    # Credentials come from the environment (infra/docker/.env); there is no committed default.
+    users:
+      enabled: true
+      admin-email: ${SEED_ADMIN_EMAIL:}
+      admin-password: ${SEED_ADMIN_PASSWORD:}
+      admin-name: ${SEED_ADMIN_NAME:Flashopify Admin}
+      customer-count: 1000
+      chunk-size: 200
+      customer-password: ${SEED_CUSTOMER_PASSWORD:}
+      export-path: ../infra/k6/users.csv
+      export-tokens: false
     dummyjson:
       base-url: https://dummyjson.com
       page-size: 100

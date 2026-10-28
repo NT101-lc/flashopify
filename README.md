@@ -45,6 +45,8 @@ bash scripts/seed/seed.sh
 It is idempotent (re-running skips products already imported by `source_id`) and exits 0 on success. Design: [ADR-0011](docs/adr/0011-seed-job-in-admin-module.md).
 DummyJSON data and images are for learning only, not commercial use (see [ADR-0006](docs/adr/0006-seed-du-lieu-tu-dummyjson.md)).
 
+The same command also creates the admin and 1,000 customers (`customer0001.flashopify.local` ...), each with one default address, and writes their credentials to `infra/k6/users.csv` (gitignored; columns `userId,email,password`). Copy `infra/docker/.env.example` to `infra/docker/.env` and set `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` and `SEED_CUSTOMER_PASSWORD` first; the seed fails with a clear message otherwise. Trade-off: all customers share one password and one BCrypt hash (hashed once, cost 10), so a leaked hash exposes every seeded customer. This is acceptable only for local and load-test data, never for real accounts. Set `--app.seed.users.export-tokens=true` to add an `accessToken` column.
+
 ## Common commands
 
 | Task | Command |

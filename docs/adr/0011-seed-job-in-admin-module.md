@@ -25,3 +25,10 @@ ADR-0006 quyết định seed sản phẩm và ảnh từ DummyJSON, nhưng đ�
 - Chạy seed cần infra đang chạy và internet (lần đầu khoảng 1,5 phút cho 194 sản phẩm và 668 ảnh).
 - `product` có thêm API nhập liệu hàng loạt công khai; không có endpoint HTTP nào dùng nó.
 - Nếu một sản phẩm lỗi sau khi ảnh đã upload, object mồ côi còn lại nhưng lần chạy sau ghi đè đúng key đó.
+
+## Bổ sung (FLS-012): seed admin và customer
+- `UserSeeder` là `SeedStep` chạy sau `ProductSeeder`, ghi qua `UserSeedService` của module `auth` (`ensureAdmin`, `ensureCustomers`), không đụng mapper `auth`.
+- Admin lấy từ `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME`; 1.000 customer dùng **một mật khẩu chung** `SEED_CUSTOMER_PASSWORD`. Thiếu biến bắt buộc thì job dừng với thông báo rõ ràng (mã thoát 1); YAML được commit không có giá trị mặc định cho email/mật khẩu.
+- **Hash BCrypt (cost 10) tính một lần** và ghi cùng một hash cho cả 1.000 hàng: seed nhanh (insert theo lô 200) thay vì khoảng một phút hash. Đánh đổi: lộ một hash là lộ cả 1.000 tài khoản, và các hàng có hash giống hệt nhau; chấp nhận vì đây chỉ là dữ liệu local/load test, không dùng cho tài khoản thật.
+- Idempotent theo email: chạy lại bỏ qua tài khoản đã có, không ghi đè mật khẩu admin; email admin đã thuộc một CUSTOMER thì báo lỗi, không tự nâng quyền.
+- `infra/k6/users.csv` (gitignored) chứa `userId,email,password` của các customer (không có admin), ghi qua file tạm rồi move nguyên tử; `app.seed.users.export-tokens=true` thêm cột `accessToken`.

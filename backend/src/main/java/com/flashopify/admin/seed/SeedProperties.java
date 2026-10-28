@@ -13,11 +13,32 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record SeedProperties(
     @DefaultValue("true") boolean autoRun,
     @DefaultValue Products products,
+    @DefaultValue Users users,
     @DefaultValue Dummyjson dummyjson,
     @DefaultValue Image image) {
 
   /** Product import step. */
   public record Products(@DefaultValue("true") boolean enabled) {}
+
+  /**
+   * Admin and customer accounts. Credentials come from the environment and have no committed
+   * default; the export is the k6 credentials file.
+   *
+   * @param customerPassword the one password shared by every customer (hashed once)
+   * @param exportPath CSV with userId,email,password; relative paths resolve against backend/
+   * @param exportTokens add an accessToken column to the CSV
+   */
+  public record Users(
+      @DefaultValue("true") boolean enabled,
+      @DefaultValue("") String adminEmail,
+      @DefaultValue("") String adminPassword,
+      @DefaultValue("Flashopify Admin") String adminName,
+      @DefaultValue("1000") int customerCount,
+      @DefaultValue("200") int chunkSize,
+      @DefaultValue("customer%04d@seed.flashopify.local") String emailPattern,
+      @DefaultValue("") String customerPassword,
+      @DefaultValue("../infra/k6/users.csv") String exportPath,
+      @DefaultValue("false") boolean exportTokens) {}
 
   /** The DummyJSON API. */
   public record Dummyjson(

@@ -1,5 +1,6 @@
 package com.flashopify.admin.seed;
 
+import com.flashopify.auth.service.UserSeedService;
 import com.flashopify.common.storage.ObjectStorage;
 import com.flashopify.product.service.ProductImportService;
 import java.net.http.HttpClient;
@@ -40,6 +41,11 @@ public class SeedConfig {
       PlaceholderImage placeholder,
       SeedProperties props) {
     return new ImageMirror(client, storage, placeholder, props);
+  }
+
+  @Bean
+  public UserSeeder userSeeder(UserSeedService userSeedService, SeedProperties props) {
+    return new UserSeeder(userSeedService, props);
   }
 
   @Bean

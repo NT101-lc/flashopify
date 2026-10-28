@@ -13,6 +13,17 @@ final class SeedTestProps {
     return new SeedProperties(
         true,
         new SeedProperties.Products(true),
+        new SeedProperties.Users(
+            true,
+            "",
+            "",
+            "Flashopify Admin",
+            1000,
+            200,
+            "customer%04d@seed.flashopify.local",
+            "",
+            "x.csv",
+            false),
         new SeedProperties.Dummyjson(baseUrl, pageSize),
         new SeedProperties.Image(maxRetries, Duration.ZERO, MAX_BYTES, Duration.ofSeconds(10)));
   }

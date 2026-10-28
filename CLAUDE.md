@@ -106,7 +106,7 @@ Run from the repo root unless the command starts with `cd`.
 | Frontend tests      | `cd frontend && npm test` |
 | Frontend build      | `cd frontend && npm run build` |
 | E2E tests           | `cd frontend && npx playwright install chromium && npm run e2e` |
-| Seed data           | `bash scripts/seed/seed.sh` (needs infra up + internet) |
+| Seed data           | `bash scripts/seed/seed.sh` (needs infra up + internet); also needs `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_CUSTOMER_PASSWORD` in `infra/docker/.env` |
 | Load test (k6)      | TBD     |
 
 ## Do
