@@ -116,7 +116,7 @@ Sinh 1 admin (thông tin từ biến môi trường) và 1.000 customer có đ�
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** OR-09, HFR-10, SRS 2.3
 Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query, ESLint/Prettier, cấu trúc `src/features/*`, sinh type + client từ `openapi.yaml`.
 - [x] `npm run gen:api` sinh type, không viết tay DTO
-- [ ] API client có interceptor đính token và parse `ErrorResponse`
+- [x] API client có interceptor đính token và parse `ErrorResponse`
 - [x] `npm run lint`, `npm test` (Vitest) chạy xanh
 - [x] Theme màu/logo riêng, không dùng asset Shopify
 
