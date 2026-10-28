@@ -49,13 +49,19 @@ public class GlobalExceptionHandler {
   ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
     List<FieldError> fieldErrors =
         ex.getConstraintViolations().stream()
-            .map(v -> new FieldError(v.getPropertyPath().toString(), v.getMessage(), null))
+            .map(
+                v -> new FieldError(leafName(v.getPropertyPath().toString()), v.getMessage(), null))
             .toList();
     return build(
         HttpStatus.BAD_REQUEST,
         ErrorCode.VALIDATION_ERROR,
         "Request validation failed",
         fieldErrors);
+  }
+
+  /** Method-level violations are reported as method.param; clients only need the param name. */
+  private static String leafName(String path) {
+    return path.substring(path.lastIndexOf('.') + 1);
   }
 
   @ExceptionHandler(MissingRequestHeaderException.class)

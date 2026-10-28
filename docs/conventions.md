@@ -23,7 +23,7 @@ Frontend: `src/features/<feature>/{components,hooks,api,pages}`, shared code in 
 ## API style
 - REST, base path `/api/v1`, plural resource nouns, kebab-case paths (`/api/v1/flash-sales`).
 - JSON in `camelCase`; timestamps ISO-8601 UTC.
-- Pagination: `?page=&size=`; response includes `items`, `page`, `size`, `total`.
+- Pagination: `?page=&size=`; response includes `items`, `page` (0-based), `size`, `totalItems`, `totalPages`.
 - Order/purchase endpoints require `Idempotency-Key` header.
 - Error body: `{ code, message, traceId, timestamp }` with proper HTTP status.
 - OpenAPI specs live in `docs/api/`.
