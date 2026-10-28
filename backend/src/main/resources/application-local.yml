@@ -19,6 +19,10 @@ app:
     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
     public-base-url: ${STORAGE_PUBLIC_BASE_URL:http://localhost:${MINIO_PORT:9000}/flashopify-media}
 
+  security:
+    jwt:
+      secret: ${JWT_SECRET:local-dev-only-change-me-32-bytes-minimum!!}
+
 spring:
   data:
     redis:
@@ -31,6 +35,3 @@ management:
   endpoint:
     health:
       show-details: always
-  security:
-    jwt:
-      secret: ${JWT_SECRET:local-dev-only-change-me-32-bytes-minimum!!}

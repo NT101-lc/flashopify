@@ -26,6 +26,17 @@
     DELETE FROM product_images WHERE id = #{id} AND product_id = #{productId}
   </delete>
 
+  <insert id="insertBatch">
+    INSERT INTO product_images (product_id, url, sort_order) VALUES
+    <foreach collection="images" item="img" separator=",">
+      (#{img.productId}, #{img.url}, #{img.sortOrder})
+    </foreach>
+  </insert>
+
+  <select id="countByUrlContaining" resultType="long">
+    SELECT COUNT(*) FROM product_images WHERE url LIKE CONCAT('%', #{text}, '%')
+  </select>
+
   <update id="updateSortOrder">
     UPDATE product_images SET sort_order = #{sortOrder}
     WHERE id = #{id} AND product_id = #{productId}

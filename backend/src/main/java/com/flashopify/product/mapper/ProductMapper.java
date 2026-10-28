@@ -25,7 +25,7 @@ public interface ProductMapper {
 
   /**
    * Inserts and fills the generated id. Throws DuplicateKeyException on uk_products_sku /
-   * uk_products_slug.
+   * uk_products_slug / uk_products_source.
    */
   int insert(Product product);
 
@@ -50,4 +50,9 @@ public interface ProductMapper {
   List<Product> adminSearch(@Param("c") AdminProductSearchCriteria criteria);
 
   long adminCount(@Param("c") AdminProductSearchCriteria criteria);
+
+  boolean existsBySourceId(@Param("sourceId") int sourceId);
+
+  /** Number of products whose thumbnail URL contains the given text (seed hotlink check). */
+  long countByThumbnailContaining(@Param("text") String text);
 }

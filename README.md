@@ -34,6 +34,17 @@ Defaults for ports and credentials live in `infra/docker/docker-compose.yml`; ov
 | MinIO      | http://localhost:9000 (console http://localhost:9001) |
 | MailHog    | SMTP localhost:1025, UI http://localhost:8025 |
 
+## Seed data
+
+With the infra up and internet access, import categories, ~194 products and their images from DummyJSON (images are copied into MinIO, nothing is hotlinked):
+
+```bash
+bash scripts/seed/seed.sh
+```
+
+It is idempotent (re-running skips products already imported by `source_id`) and exits 0 on success. Design: [ADR-0011](docs/adr/0011-seed-job-in-admin-module.md).
+DummyJSON data and images are for learning only, not commercial use (see [ADR-0006](docs/adr/0006-seed-du-lieu-tu-dummyjson.md)).
+
 ## Common commands
 
 | Task | Command |

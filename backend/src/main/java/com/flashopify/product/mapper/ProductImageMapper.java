@@ -26,4 +26,10 @@ public interface ProductImageMapper {
 
   /** Moves every image with sort_order {@code >= fromOrder} one position up (+1). */
   int shiftFrom(@Param("productId") long productId, @Param("fromOrder") int fromOrder);
+
+  /** Inserts all rows in one statement; ids are not filled. */
+  int insertBatch(@Param("images") List<ProductImage> images);
+
+  /** Number of images whose URL contains the given text (seed hotlink check). */
+  long countByUrlContaining(@Param("text") String text);
 }

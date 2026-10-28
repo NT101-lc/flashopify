@@ -12,6 +12,9 @@ public interface ObjectStorage {
    */
   PresignedUpload presignPut(String key, String contentType, long contentLength, Duration ttl);
 
+  /** Stores the bytes under the key with the given Content-Type, replacing any existing object. */
+  void put(String key, byte[] content, String contentType);
+
   /** Metadata of the object, empty when it does not exist. */
   Optional<ObjectMetadata> head(String key);
 

@@ -20,4 +20,8 @@
   <select id="existsById" resultType="boolean">
     SELECT EXISTS (SELECT 1 FROM categories WHERE id = #{id})
   </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO categories (slug, name) VALUES (#{slug}, #{name})
+  </insert>
 </mapper>

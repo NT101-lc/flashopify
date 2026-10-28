@@ -17,4 +17,7 @@ public interface CategoryMapper {
   List<CategoryProductCount> countActiveProductsByCategory();
 
   boolean existsById(@Param("id") long id);
+
+  /** Inserts and fills the generated id. Throws DuplicateKeyException on uk_categories_slug. */
+  int insert(Category category);
 }

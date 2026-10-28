@@ -1,0 +1,18 @@
+{
+  "products": [
+    {
+      "id": 9001, "title": "Seed IT Alpha", "description": "First", "category": "seed-it-beauty",
+      "price": 9.99, "rating": 4.56, "stock": 10, "brand": "Alpha Co", "sku": "SEEDIT-001",
+      "thumbnail": "http://localhost:${port}/img/a.png",
+      "images": ["http://localhost:${port}/img/a.png", "http://localhost:${port}/img/b.png"],
+      "reviews": [{"rating": 5, "comment": "ignored"}]
+    },
+    {
+      "id": 9002, "title": "Seed IT Beta", "description": "Second", "category": "seed-it-laptops",
+      "price": 100, "rating": 3.0, "stock": 20, "brand": null, "sku": "SEEDIT-002",
+      "thumbnail": "http://localhost:${port}/img/broken.png",
+      "images": ["http://localhost:${port}/img/a.png"]
+    }
+  ],
+  "total": 3, "skip": 0, "limit": 2
+}

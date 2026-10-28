@@ -100,10 +100,10 @@ Interface `ObjectStorage` (MinIO/S3 qua cấu hình); `upload-url` → PUT trự
 ### FLS-011 · Seed sản phẩm và ảnh từ DummyJSON
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-010 · **Liên kết:** HFR-12, UC-12, OR-07, ADR-0006
 Job profile `seed`: import category, ~194 sản phẩm, tải ảnh lên object storage, ghi product/images/inventory trong transaction.
-- [ ] Chạy lại không tạo trùng (theo `source_id`)
-- [ ] Ảnh lỗi retry 3 lần rồi dùng placeholder + log cảnh báo
-- [ ] Không còn URL `dummyjson.com` trong DB sau khi seed
-- [ ] Log tổng số sản phẩm/ảnh đã import
+- [x] Chạy lại không tạo trùng (theo `source_id`)
+- [x] Ảnh lỗi retry 3 lần rồi dùng placeholder + log cảnh báo
+- [x] Không còn URL `dummyjson.com` trong DB sau khi seed
+- [x] Log tổng số sản phẩm/ảnh đã import
 
 ### FLS-012 · Seed admin và 1.000 customer
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** OR-07, SRS 7.2

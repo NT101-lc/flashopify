@@ -3,6 +3,7 @@ package com.flashopify.common.storage;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -41,6 +42,18 @@ public class S3ObjectStorage implements ObjectStorage {
             PutObjectPresignRequest.builder().signatureDuration(ttl).putObjectRequest(put).build());
     return new PresignedUpload(
         presigned.url().toString(), Map.of("Content-Type", contentType), presigned.expiration());
+  }
+
+  @Override
+  public void put(String key, byte[] content, String contentType) {
+    client.putObject(
+        PutObjectRequest.builder()
+            .bucket(props.bucket())
+            .key(key)
+            .contentType(contentType)
+            .contentLength((long) content.length)
+            .build(),
+        RequestBody.fromBytes(content));
   }
 
   @Override

@@ -75,9 +75,10 @@
   </sql>
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO products (category_id, sku, name, slug, description, brand, price, thumbnail_url, status)
-    VALUES (#{categoryId}, #{sku}, #{name}, #{slug}, #{description}, #{brand}, #{price},
-            #{thumbnailUrl}, #{status})
+    INSERT INTO products (category_id, source_id, sku, name, slug, description, brand, price, rating,
+                          thumbnail_url, status)
+    VALUES (#{categoryId}, #{sourceId}, #{sku}, #{name}, #{slug}, #{description}, #{brand}, #{price},
+            #{rating}, #{thumbnailUrl}, #{status})
   </insert>
 
   <update id="update">
@@ -150,5 +151,13 @@
       LEFT JOIN inventory i ON i.product_id = p.id
     </if>
     <include refid="adminFilters"/>
+  </select>
+
+  <select id="existsBySourceId" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM products WHERE source_id = #{sourceId})
+  </select>
+
+  <select id="countByThumbnailContaining" resultType="long">
+    SELECT COUNT(*) FROM products WHERE thumbnail_url LIKE CONCAT('%', #{text}, '%')
   </select>
 </mapper>

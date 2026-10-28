@@ -1,0 +1,11 @@
+{
+  "products": [
+    {
+      "id": 9003, "title": "Seed IT Gamma", "description": "Third", "category": "seed-it-gadgets",
+      "price": 1.005, "rating": 9, "stock": -5,
+      "thumbnail": "http://localhost:${port}/img/b.png",
+      "images": []
+    }
+  ],
+  "total": 3, "skip": 2, "limit": 2
+}
