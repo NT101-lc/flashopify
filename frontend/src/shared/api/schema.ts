@@ -574,6 +574,9 @@ export interface paths {
          * @description Step 1 of 2. The client PUTs the file to `uploadUrl` (with the returned headers) directly to
          *     MinIO/S3, then calls `POST /admin/products/{productId}/images` with `objectKey`.
          *     JPG/PNG/WebP only, max 5 MB, max 8 gallery images per product.
+         *     The server generates `objectKey` (`fileName` is never used in it). `headers` contains only
+         *     `Content-Type`; the signature also covers the announced `contentLength`, so the upload must
+         *     match exactly.
          */
         post: operations["adminCreateProductImageUploadUrl"];
         delete?: never;
@@ -601,6 +604,11 @@ export interface paths {
         /**
          * Register an uploaded image on the product
          * @description Step 2 of 2. Verifies the object exists in storage, then stores its CDN URL.
+         *     `objectKey` must be a key returned by `upload-url` for the same product, otherwise
+         *     `400 VALIDATION_ERROR`. If the uploaded object violates the limits (over 5 MB or not
+         *     JPG/PNG/WebP) it is deleted and the response is `400 FILE_TOO_LARGE` /
+         *     `400 UNSUPPORTED_MEDIA_TYPE`. The first image of a product (or `setAsThumbnail: true`)
+         *     becomes the product thumbnail.
          */
         post: operations["adminAddProductImage"];
         delete?: never;
@@ -619,7 +627,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a product image */
+        /**
+         * Delete a product image
+         * @description Removes the image, compacts the remaining `sortOrder` values to `0..n-1` and, when the
+         *     deleted image was the thumbnail, falls back to the first remaining image (or none).
+         *     An image that belongs to another product is `404 IMAGE_NOT_FOUND`.
+         */
         delete: operations["adminDeleteProductImage"];
         options?: never;
         head?: never;

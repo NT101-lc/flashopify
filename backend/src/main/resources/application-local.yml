@@ -10,6 +10,15 @@ app:
       username: ${PGVECTOR_USER:flashopify}
       password: ${PGVECTOR_PASSWORD:flashopify}
 
+  storage:
+    bucket: ${STORAGE_BUCKET:flashopify-media}
+    region: ${STORAGE_REGION:us-east-1}
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:${MINIO_PORT:9000}}
+    path-style-access: ${STORAGE_PATH_STYLE:true}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    public-base-url: ${STORAGE_PUBLIC_BASE_URL:http://localhost:${MINIO_PORT:9000}/flashopify-media}
+
 spring:
   data:
     redis:

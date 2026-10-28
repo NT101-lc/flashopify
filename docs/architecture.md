@@ -26,3 +26,4 @@ Architecture Decision Records (template: [0000-template.md](adr/0000-template.md
 | [0007](adr/0007-jwt-access-refresh-token.md) | JWT access token (15 min) + rotating refresh token in Redis (7 days) |
 | [0008](adr/0008-cache-aside-product-detail.md) | Cache-aside for product detail in Redis (static part only), live stock overlay, evict after commit |
 | [0009](adr/0009-admin-product-list-reads-inventory.md) | Admin product list may LEFT JOIN `inventory` read-only for sort/filter (narrow exception to ADR-0001) |
+| [0010](adr/0010-object-storage-s3-sdk.md) | AWS SDK v2 for both MinIO and S3 (config-only switch); presigned PUT upload to `tmp/`, verified and copied on registration |

@@ -92,10 +92,10 @@ Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELET
 ### FLS-010 · Upload ảnh sản phẩm qua presigned URL
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001, FLS-009 · **Liên kết:** OR-06, UC-10
 Interface `ObjectStorage` (MinIO/S3 qua cấu hình); `upload-url` → PUT trực tiếp → `POST images` lưu URL CDN; reorder và xoá ảnh.
-- [ ] Chỉ JPG/PNG/WebP ≤ 5 MB; tối đa 8 ảnh/sản phẩm
-- [ ] `POST images` kiểm tra object tồn tại, nếu không → 400 `OBJECT_NOT_FOUND`
-- [ ] Reorder yêu cầu đủ mọi imageId
-- [ ] Đổi MinIO ↔ S3 chỉ bằng cấu hình
+- [x] Chỉ JPG/PNG/WebP ≤ 5 MB; tối đa 8 ảnh/sản phẩm
+- [x] `POST images` kiểm tra object tồn tại, nếu không → 400 `OBJECT_NOT_FOUND`
+- [x] Reorder yêu cầu đủ mọi imageId
+- [x] Đổi MinIO ↔ S3 chỉ bằng cấu hình
 
 ### FLS-011 · Seed sản phẩm và ảnh từ DummyJSON
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-010 · **Liên kết:** HFR-12, UC-12, OR-07, ADR-0006
@@ -356,6 +356,7 @@ Nút góc dưới phải mở khung chat, giữ `conversationId`, hiện card s�
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-009, FLS-010, FLS-026 · **Liên kết:** HFR-11, UC-10, OR-02
 Sidebar kiểu Shopify admin; bảng sản phẩm tìm/lọc/phân trang; form sản phẩm kéo thả upload nhiều ảnh, sắp xếp thứ tự.
 - [ ] Upload qua presigned URL, có progress
+- [ ] Cấu hình CORS bucket MinIO local cho `PUT` từ `http://localhost:5173` (FLS-010 chưa làm)
 - [ ] Kéo thả đổi thứ tự gọi API reorder
 - [ ] Route `/admin` chỉ cho ADMIN
 
@@ -391,6 +392,7 @@ Skeleton khi tải, responsive 360–1440 px, ảnh lazy-load qua CDN, alt/keybo
 Bucket ảnh + bucket frontend, CloudFront (OAC, HTTPS), cache policy; cấu hình storage prod trỏ S3.
 - [ ] Bucket không public, chỉ CloudFront đọc được
 - [ ] CORS cho presigned PUT từ domain admin
+- [ ] Lifecycle rule hết hạn object `products/*/tmp/` (upload bỏ dở, ADR-0010)
 - [ ] SPA fallback về `index.html`
 
 ### FLS-050 · Deploy backend + dữ liệu lên AWS

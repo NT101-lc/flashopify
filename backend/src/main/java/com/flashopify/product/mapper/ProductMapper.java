@@ -41,6 +41,9 @@ public interface ProductMapper {
   /** {@code SELECT ... FOR SHARE} on the product row only; any status. */
   Product lockByIdShared(@Param("id") long id);
 
+  /** Sets (or clears with null) the thumbnail URL. */
+  int updateThumbnail(@Param("id") long id, @Param("url") String url);
+
   int softDelete(@Param("id") long id);
 
   /** Reads inventory with a LEFT JOIN for sort/filter only (ADR-0009); never writes it. */
