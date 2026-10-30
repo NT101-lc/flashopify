@@ -101,6 +101,7 @@ Run from the repo root unless the command starts with `cd`.
 | Backend unit tests  | `cd backend && ./mvnw test` |
 | Backend all tests   | `cd backend && ./mvnw verify` (unit + Testcontainers `*IT`, needs Docker) |
 | Backend format      | `cd backend && ./mvnw spotless:apply` |
+| Lint API spec       | `npx --yes @redocly/cli@2.64.1 lint docs/api/openapi.yaml` |
 | Generate API types  | `cd frontend && npm run gen:api` (after editing `docs/api/openapi.yaml`) |
 | Run frontend        | `cd frontend && npm run dev` (http://localhost:5173, proxies `/api` to :8080) |
 | Frontend lint       | `cd frontend && npm run lint && npm run typecheck` |

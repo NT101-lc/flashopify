@@ -1398,6 +1398,7 @@ paths:
                       quantity: 194
                       reserved: 100
                       available: 94
+                      version: 7
                     updatedAt: '2026-10-27T08:00:00Z'
                 page: 0
                 size: 20
@@ -1452,6 +1453,7 @@ paths:
                   quantity: 50
                   reserved: 0
                   available: 50
+                  version: 0
                 updatedAt: '2026-10-27T10:00:00Z'
                 description: Flagship phone.
                 rating: null
@@ -1516,6 +1518,7 @@ paths:
                   quantity: 194
                   reserved: 100
                   available: 94
+                  version: 7
                 updatedAt: '2026-10-27T08:00:00Z'
                 description: An apple mobile which is nothing like apple.
                 rating: 4.69
@@ -1573,6 +1576,7 @@ paths:
                   quantity: 194
                   reserved: 100
                   available: 94
+                  version: 7
                 updatedAt: '2026-10-27T10:05:00Z'
                 description: Updated description.
                 rating: 4.69

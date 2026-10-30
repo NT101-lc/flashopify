@@ -3327,7 +3327,8 @@ export interface operations {
                      *           "inventory": {
                      *             "quantity": 194,
                      *             "reserved": 100,
-                     *             "available": 94
+                     *             "available": 94,
+                     *             "version": 7
                      *           },
                      *           "updatedAt": "2026-10-27T08:00:00Z"
                      *         }
@@ -3392,7 +3393,8 @@ export interface operations {
                      *       "inventory": {
                      *         "quantity": 50,
                      *         "reserved": 0,
-                     *         "available": 50
+                     *         "available": 50,
+                     *         "version": 0
                      *       },
                      *       "updatedAt": "2026-10-27T10:00:00Z",
                      *       "description": "Flagship phone.",
@@ -3476,7 +3478,8 @@ export interface operations {
                      *       "inventory": {
                      *         "quantity": 194,
                      *         "reserved": 100,
-                     *         "available": 94
+                     *         "available": 94,
+                     *         "version": 7
                      *       },
                      *       "updatedAt": "2026-10-27T08:00:00Z",
                      *       "description": "An apple mobile which is nothing like apple.",
@@ -3548,7 +3551,8 @@ export interface operations {
                      *       "inventory": {
                      *         "quantity": 194,
                      *         "reserved": 100,
-                     *         "available": 94
+                     *         "available": 94,
+                     *         "version": 7
                      *       },
                      *       "updatedAt": "2026-10-27T10:05:00Z",
                      *       "description": "Updated description.",

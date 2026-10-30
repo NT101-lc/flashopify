@@ -13,6 +13,16 @@ permissions:
   contents: read
 
 jobs:
+  api-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Lint docs/api/openapi.yaml
+        run: npx --yes @redocly/cli@2.64.1 lint docs/api/openapi.yaml
+
   backend:
     runs-on: ubuntu-latest
     defaults:
