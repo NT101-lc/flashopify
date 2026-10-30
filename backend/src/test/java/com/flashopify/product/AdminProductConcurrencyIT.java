@@ -115,8 +115,10 @@ class AdminProductConcurrencyIT extends AbstractIntegrationTest {
     int writerConflict = 0;
     int serverErrors = 0;
     Map<String, Integer> histogram = new TreeMap<>();
-    // Seeded jitter before the reservation: without it the writer's first read always wins the
-    // start race and the writer never sees a fresh version. Both orderings must occur.
+    // Seeded jitter before the reservation so both orderings occur. The writer's PUT takes a few
+    // milliseconds after its read, so a 0-2 ms delay alone lets the reservation win every time on
+    // a slow runner. Even iterations keep the tight race (reservation usually first); odd ones use
+    // up to 50 ms so the writer's PUT can commit first.
     Random jitter = new Random(20260628L);
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
@@ -124,7 +126,7 @@ class AdminProductConcurrencyIT extends AbstractIntegrationTest {
         // Known state every iteration; the version keeps growing, which is fine.
         jdbc.update("UPDATE inventory SET quantity = 100, reserved = 0 WHERE product_id = ?", pid);
         CyclicBarrier start = new CyclicBarrier(2);
-        long reserveDelayNanos = jitter.nextInt(2_000_000);
+        long reserveDelayNanos = jitter.nextInt(iteration % 2 == 0 ? 2_000_000 : 50_000_000);
         // Thread A: a guarded reservation, as the flash-sale path will do it.
         Callable<Integer> reserve =
             () -> {
