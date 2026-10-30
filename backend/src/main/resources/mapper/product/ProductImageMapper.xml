@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.product.mapper.ProductImageMapper">
+
+  <select id="findByProductId" resultType="com.flashopify.product.domain.ProductImage">
+    SELECT id, product_id, url, sort_order, created_at
+    FROM product_images WHERE product_id = #{productId}
+    ORDER BY sort_order ASC, id ASC
+  </select>
+
+  <select id="countByProductId" resultType="int">
+    SELECT COUNT(*) FROM product_images WHERE product_id = #{productId}
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO product_images (product_id, url, sort_order)
+    VALUES (#{productId}, #{url}, #{sortOrder})
+  </insert>
+
+  <select id="findByIdAndProduct" resultType="com.flashopify.product.domain.ProductImage">
+    SELECT id, product_id, url, sort_order, created_at
+    FROM product_images WHERE id = #{id} AND product_id = #{productId}
+  </select>
+
+  <delete id="deleteByIdAndProduct">
+    DELETE FROM product_images WHERE id = #{id} AND product_id = #{productId}
+  </delete>
+
+  <insert id="insertBatch">
+    INSERT INTO product_images (product_id, url, sort_order) VALUES
+    <foreach collection="images" item="img" separator=",">
+      (#{img.productId}, #{img.url}, #{img.sortOrder})
+    </foreach>
+  </insert>
+
+  <select id="countByUrlContaining" resultType="long">
+    SELECT COUNT(*) FROM product_images WHERE url LIKE CONCAT('%', #{text}, '%')
+  </select>
+
+  <update id="updateSortOrder">
+    UPDATE product_images SET sort_order = #{sortOrder}
+    WHERE id = #{id} AND product_id = #{productId}
+  </update>
+
+  <update id="shiftFrom">
+    UPDATE product_images SET sort_order = sort_order + 1
+    WHERE product_id = #{productId} AND sort_order &gt;= #{fromOrder}
+  </update>
+</mapper>

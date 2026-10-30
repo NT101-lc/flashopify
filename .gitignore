@@ -43,6 +43,9 @@ test-results/
 Thumbs.db
 desktop.ini
 
+# Seeded load-test credentials (FLS-012)
+infra/k6/*.csv
+
 # Installed agent skills (local only)
 .agents/
 .claude/skills/

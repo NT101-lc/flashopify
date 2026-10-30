@@ -22,6 +22,13 @@
     VALUES (#{userId}, #{receiverName}, #{phone}, #{addressLine}, #{ward}, #{district}, #{city}, #{defaultAddress}, #{createdAt})
   </insert>
 
+  <insert id="insertBatch">
+    INSERT INTO addresses (user_id, receiver_name, phone, address_line, ward, district, city, is_default, created_at) VALUES
+    <foreach collection="addresses" item="a" separator=",">
+      (#{a.userId}, #{a.receiverName}, #{a.phone}, #{a.addressLine}, #{a.ward}, #{a.district}, #{a.city}, #{a.defaultAddress}, #{a.createdAt})
+    </foreach>
+  </insert>
+
   <update id="update">
     UPDATE addresses SET
       receiver_name = #{receiverName},

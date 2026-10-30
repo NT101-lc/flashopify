@@ -33,6 +33,22 @@ app:
       max-failed-attempts: 5
       lock-duration: 15m
 
+  catalog:
+    cache:
+      detail-ttl: 10m
+
+  # MinIO vs S3 is configuration only: set endpoint (+ path-style) for MinIO, leave blank for S3.
+  storage:
+    bucket: ${STORAGE_BUCKET:}
+    region: ${STORAGE_REGION:us-east-1}
+    endpoint: ${STORAGE_ENDPOINT:}
+    presign-endpoint: ${STORAGE_PRESIGN_ENDPOINT:}
+    path-style-access: ${STORAGE_PATH_STYLE:false}
+    access-key: ${STORAGE_ACCESS_KEY:}
+    secret-key: ${STORAGE_SECRET_KEY:}
+    public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+    presign-ttl: 10m
+
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

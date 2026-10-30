@@ -4,6 +4,7 @@ import com.flashopify.common.exception.ErrorResponse.FieldError;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -49,13 +50,19 @@ public class GlobalExceptionHandler {
   ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
     List<FieldError> fieldErrors =
         ex.getConstraintViolations().stream()
-            .map(v -> new FieldError(v.getPropertyPath().toString(), v.getMessage(), null))
+            .map(
+                v -> new FieldError(leafName(v.getPropertyPath().toString()), v.getMessage(), null))
             .toList();
     return build(
         HttpStatus.BAD_REQUEST,
         ErrorCode.VALIDATION_ERROR,
         "Request validation failed",
         fieldErrors);
+  }
+
+  /** Method-level violations are reported as method.param; clients only need the param name. */
+  private static String leafName(String path) {
+    return path.substring(path.lastIndexOf('.') + 1);
   }
 
   @ExceptionHandler(MissingRequestHeaderException.class)
@@ -118,6 +125,13 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AccessDeniedException.class)
   ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
     return build(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access denied");
+  }
+
+  /** Lock wait timeout / deadlock: the transaction was rolled back, the client may retry. */
+  @ExceptionHandler(PessimisticLockingFailureException.class)
+  ResponseEntity<ErrorResponse> handleLockFailure(PessimisticLockingFailureException ex) {
+    log.warn("Lock failure: {}", ex.toString());
+    return build(HttpStatus.CONFLICT, ErrorCode.CONCURRENT_MODIFICATION, "Resource is busy, retry");
   }
 
   @ExceptionHandler(Exception.class)

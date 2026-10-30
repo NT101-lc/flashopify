@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.flashsale.mapper.FlashSaleItemMapper">
+
+  <!-- Locking read (FOR SHARE): the caller already holds the product row lock. -->
+  <select id="existsInActiveCampaign" resultType="java.lang.Integer">
+    SELECT 1
+    FROM flash_sale_items i
+    JOIN flash_sale_campaigns c ON c.id = i.campaign_id
+    WHERE i.product_id = #{productId} AND c.status IN ('SCHEDULED', 'RUNNING')
+    LIMIT 1
+    FOR SHARE
+  </select>
+</mapper>

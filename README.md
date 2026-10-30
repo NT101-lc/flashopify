@@ -19,6 +19,16 @@ cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 cd frontend && npm install && npm run dev
 ```
 
+Stop / reset the infra:
+
+```bash
+# Stop containers, keep data
+docker compose -f infra/docker/docker-compose.yml down
+
+# Stop and wipe volumes. WARNING: deletes ALL MySQL, MinIO, PostgreSQL (and Redis/Kafka) data, including seed data
+docker compose -f infra/docker/docker-compose.yml down -v
+```
+
 Defaults for ports and credentials live in `infra/docker/docker-compose.yml`; override them with
 `infra/docker/.env`. Health check: http://localhost:8080/actuator/health.
 
@@ -33,6 +43,19 @@ Defaults for ports and credentials live in `infra/docker/docker-compose.yml`; ov
 | Kafka UI   | http://localhost:8081 |
 | MinIO      | http://localhost:9000 (console http://localhost:9001) |
 | MailHog    | SMTP localhost:1025, UI http://localhost:8025 |
+
+## Seed data
+
+With the infra up and internet access, import categories, ~194 products and their images from DummyJSON (images are copied into MinIO, nothing is hotlinked):
+
+```bash
+bash scripts/seed/seed.sh
+```
+
+It is idempotent (re-running skips products already imported by `source_id`) and exits 0 on success. Design: [ADR-0011](docs/adr/0011-seed-job-in-admin-module.md).
+DummyJSON data and images are for learning only, not commercial use (see [ADR-0006](docs/adr/0006-seed-du-lieu-tu-dummyjson.md)).
+
+The same command also creates the admin and 1,000 customers (`customer0001.flashopify.local` ...), each with one default address, and writes their credentials to `infra/k6/users.csv` (gitignored; columns `userId,email,password`). Copy `infra/docker/.env.example` to `infra/docker/.env` and set `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` and `SEED_CUSTOMER_PASSWORD` first; the seed fails with a clear message otherwise. Trade-off: all customers share one password and one BCrypt hash (hashed once, cost 10), so a leaked hash exposes every seeded customer. This is acceptable only for local and load-test data, never for real accounts. Set `--app.seed.users.export-tokens=true` to add an `accessToken` column.
 
 ## Common commands
 

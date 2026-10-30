@@ -2,6 +2,8 @@ package com.flashopify.auth.mapper;
 
 import com.flashopify.auth.domain.User;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -35,6 +37,12 @@ public interface UserMapper {
   /** Updates only the non-null arguments; callers must pass at least one. */
   int updateProfile(
       @Param("id") long id, @Param("fullName") String fullName, @Param("phone") String phone);
+
+  /** Inserts all users in one statement and fills their generated ids. */
+  int insertBatch(@Param("users") List<User> users);
+
+  /** Users (id and email only) whose email is in the list. */
+  List<User> findIdsByEmails(@Param("emails") Collection<String> emails);
 
   /** Soft delete: status DELETED, personal data replaced, credentials made unusable. */
   int anonymize(

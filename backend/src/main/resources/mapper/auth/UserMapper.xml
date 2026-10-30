@@ -20,6 +20,18 @@
     VALUES (#{email}, #{passwordHash}, #{fullName}, #{phone}, #{role}, #{status}, #{createdAt}, #{updatedAt})
   </insert>
 
+  <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO users (email, password_hash, full_name, phone, role, status, created_at, updated_at) VALUES
+    <foreach collection="users" item="u" separator=",">
+      (#{u.email}, #{u.passwordHash}, #{u.fullName}, #{u.phone}, #{u.role}, #{u.status}, #{u.createdAt}, #{u.updatedAt})
+    </foreach>
+  </insert>
+
+  <select id="findIdsByEmails" resultType="com.flashopify.auth.domain.User">
+    SELECT id, email FROM users WHERE email IN
+    <foreach collection="emails" item="e" open="(" separator="," close=")">#{e}</foreach>
+  </select>
+
   <!-- MySQL evaluates SET left to right: locked_until must come before failed_login_count. -->
   <update id="recordFailedLogin">
     UPDATE users SET

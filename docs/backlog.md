@@ -22,17 +22,17 @@ Label: `backend` · `frontend` · `infra` · `docs` · `test`. Ước lượng: 
 **Label:** infra · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** SRS 2.3, OR-04, 6.2
 Một lệnh `docker compose up` chạy đủ hạ tầng local: MySQL 8, Redis 7, Kafka (KRaft), MinIO, PostgreSQL 16 + pgvector, Mailhog. Có healthcheck cho từng service.
 - [x] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh _(file thực tế: `docker-compose.yml`, thêm kafka-ui)_
-- [ ] MinIO tự tạo bucket `flashopify`; Postgres bật extension `vector`
+- [x] MinIO tự tạo bucket `flashopify-media`; Postgres bật extension `vector`
 - [x] `.env.example` bổ sung biến còn thiếu; không commit `.env` _(`infra/docker/.env.example`)_
-- [ ] README ghi lệnh khởi động/dừng/xoá volume
+- [x] README ghi lệnh khởi động/dừng/xoá volume
 
 ### FLS-002 · Skeleton Spring Boot modular monolith
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001 · **Liên kết:** HNFR-03, HNFR-05, OR-09, ADR-0001
 Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/service/mapper/domain/dto`), profile `local/test/prod`, Actuator, springdoc phục vụ `docs/api/openapi.yaml`.
 - [x] `./mvnw verify` chạy xanh; app khởi động với profile `local`
 - [x] `/actuator/health` trả UP (MySQL, Redis)
-- [ ] ArchUnit test: module không truy cập `mapper` của module khác
-- [ ] Swagger UI hiển thị spec
+- [x] ArchUnit test: module không truy cập `mapper` của module khác
+- [x] Swagger UI hiển thị spec _(spec tự sinh từ controller, springdoc)_
 
 ### FLS-003 · Flyway baseline + cấu hình MyBatis
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-04, ADR-0004, ADR-0005
@@ -47,7 +47,7 @@ Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/
 - [x] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
 - [x] `BusinessException(ErrorCode)` map đúng HTTP status
 - [x] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
-- [ ] Unit test cho advice
+- [x] Unit test cho advice
 
 ### FLS-005 · Đăng ký + đăng nhập JWT + khoá tài khoản
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-01, UC-01, UC-02, SEC-01, SEC-05, TC-10, ADR-0007
@@ -76,47 +76,47 @@ Spring Security filter JWT, role CUSTOMER/ADMIN theo `x-roles`; `GET/PATCH/DELET
 ### FLS-008 · API catalog công khai + cache
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-02, UC-03, HNFR-01
 `GET /categories`, `GET /products` (q, category, brand, giá, rating, sort, page), `GET /products/brands`, `GET /products/{slug}` cache Redis.
-- [ ] Sort chỉ nhận giá trị whitelist (không `${}` từ input)
-- [ ] `PageResponse` đúng `page/size/totalItems/totalPages`
-- [ ] Chi tiết sản phẩm cache Redis, bị xoá khi admin sửa
-- [ ] Sản phẩm INACTIVE/DELETED không xuất hiện
+- [x] Sort chỉ nhận giá trị whitelist (không `${}` từ input)
+- [x] `PageResponse` đúng `page/size/totalItems/totalPages`
+- [x] Chi tiết sản phẩm cache Redis, bị xoá khi admin sửa _(evict wired to admin in FLS-009)_
+- [x] Sản phẩm INACTIVE/DELETED không xuất hiện
 
 ### FLS-009 · Admin CRUD sản phẩm + cập nhật tồn kho
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-007, FLS-008 · **Liên kết:** HFR-02, HFR-03, UC-10, OR-05
 `/admin/products` list/create/get/update/delete mềm; `PUT /admin/products/{id}/inventory` dùng optimistic lock.
-- [ ] SKU/slug trùng → 409
-- [ ] Xoá đặt status DELETED; chặn nếu đang trong chiến dịch
-- [ ] Sai `version` → 409 `CONCURRENT_MODIFICATION`; không cho `quantity < reserved`
-- [ ] Mapper test với Testcontainers MySQL
+- [x] SKU/slug trùng → 409
+- [x] Xoá đặt status DELETED; chặn nếu đang trong chiến dịch
+- [x] Sai `version` → 409 `CONCURRENT_MODIFICATION`; không cho `quantity < reserved`
+- [x] Mapper test với Testcontainers MySQL
 
 ### FLS-010 · Upload ảnh sản phẩm qua presigned URL
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001, FLS-009 · **Liên kết:** OR-06, UC-10
 Interface `ObjectStorage` (MinIO/S3 qua cấu hình); `upload-url` → PUT trực tiếp → `POST images` lưu URL CDN; reorder và xoá ảnh.
-- [ ] Chỉ JPG/PNG/WebP ≤ 5 MB; tối đa 8 ảnh/sản phẩm
-- [ ] `POST images` kiểm tra object tồn tại, nếu không → 400 `OBJECT_NOT_FOUND`
-- [ ] Reorder yêu cầu đủ mọi imageId
-- [ ] Đổi MinIO ↔ S3 chỉ bằng cấu hình
+- [x] Chỉ JPG/PNG/WebP ≤ 5 MB; tối đa 8 ảnh/sản phẩm
+- [x] `POST images` kiểm tra object tồn tại, nếu không → 400 `OBJECT_NOT_FOUND`
+- [x] Reorder yêu cầu đủ mọi imageId
+- [x] Đổi MinIO ↔ S3 chỉ bằng cấu hình
 
 ### FLS-011 · Seed sản phẩm và ảnh từ DummyJSON
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-010 · **Liên kết:** HFR-12, UC-12, OR-07, ADR-0006
 Job profile `seed`: import category, ~194 sản phẩm, tải ảnh lên object storage, ghi product/images/inventory trong transaction.
-- [ ] Chạy lại không tạo trùng (theo `source_id`)
-- [ ] Ảnh lỗi retry 3 lần rồi dùng placeholder + log cảnh báo
-- [ ] Không còn URL `dummyjson.com` trong DB sau khi seed
-- [ ] Log tổng số sản phẩm/ảnh đã import
+- [x] Chạy lại không tạo trùng (theo `source_id`)
+- [x] Ảnh lỗi retry 3 lần rồi dùng placeholder + log cảnh báo
+- [x] Không còn URL `dummyjson.com` trong DB sau khi seed
+- [x] Log tổng số sản phẩm/ảnh đã import
 
 ### FLS-012 · Seed admin và 1.000 customer
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-005 · **Liên kết:** OR-07, SRS 7.2
 Sinh 1 admin (thông tin từ biến môi trường) và 1.000 customer có địa chỉ, xuất file token/credential test cho k6.
-- [ ] Idempotent khi chạy lại
-- [ ] Mật khẩu hash BCrypt; không commit credential thật
-- [ ] Xuất `infra/k6/users.csv` (bị gitignore)
+- [x] Idempotent khi chạy lại
+- [x] Mật khẩu hash BCrypt; không commit credential thật
+- [x] Xuất `infra/k6/users.csv` (bị gitignore)
 
 ### FLS-013 · Scaffold frontend React + codegen OpenAPI
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** OR-09, HFR-10, SRS 2.3
 Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query, ESLint/Prettier, cấu trúc `src/features/*`, sinh type + client từ `openapi.yaml`.
 - [x] `npm run gen:api` sinh type, không viết tay DTO
-- [ ] API client có interceptor đính token và parse `ErrorResponse`
+- [x] API client có interceptor đính token và parse `ErrorResponse`
 - [x] `npm run lint`, `npm test` (Vitest) chạy xanh
 - [x] Theme màu/logo riêng, không dùng asset Shopify
 
@@ -124,7 +124,7 @@ Vite + React 18 + TS strict, Tailwind + shadcn/ui, React Router, TanStack Query,
 **Label:** infra · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002, FLS-013 · **Liên kết:** HNFR-05, OR-10
 Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, Redocly lint OpenAPI, báo cáo coverage.
 - [x] Chạy trên PR và push `main`
-- [ ] Fail nếu coverage service < 70%
+- [x] Fail nếu coverage service < 70%
 - [x] Cache Maven/npm
 
 ---
@@ -138,6 +138,7 @@ CRUD `/admin/flash-sales`: validate giờ, số lượng ≤ tồn kho khả d�
 - [ ] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
 - [ ] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
 - [ ] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
+- [ ] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
 
 ### FLS-016 · Warm-up Redis và vòng đời chiến dịch
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-015 · **Liên kết:** UC-09, HFR-04, ADR-0002
@@ -146,6 +147,7 @@ Scheduler nạp `fs:stock:{itemId}`, giờ mở/đóng, limit vào Redis trướ
 - [ ] Warm-up chạy lại không ghi đè kho đang bán
 - [ ] Hết giờ: status ENDED, ghi `sold` về MySQL
 - [ ] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
+- [ ] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
 
 ### FLS-017 · Lua script trừ kho flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-016 · **Liên kết:** HNFR-02, UC-05, TC-01, TC-02, TC-04, ADR-0002
@@ -354,6 +356,7 @@ Nút góc dưới phải mở khung chat, giữ `conversationId`, hiện card s�
 **Label:** frontend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-009, FLS-010, FLS-026 · **Liên kết:** HFR-11, UC-10, OR-02
 Sidebar kiểu Shopify admin; bảng sản phẩm tìm/lọc/phân trang; form sản phẩm kéo thả upload nhiều ảnh, sắp xếp thứ tự.
 - [ ] Upload qua presigned URL, có progress
+- [ ] Cấu hình CORS bucket MinIO local cho `PUT` từ `http://localhost:5173` (FLS-010 chưa làm)
 - [ ] Kéo thả đổi thứ tự gọi API reorder
 - [ ] Route `/admin` chỉ cho ADMIN
 
@@ -389,6 +392,7 @@ Skeleton khi tải, responsive 360–1440 px, ảnh lazy-load qua CDN, alt/keybo
 Bucket ảnh + bucket frontend, CloudFront (OAC, HTTPS), cache policy; cấu hình storage prod trỏ S3.
 - [ ] Bucket không public, chỉ CloudFront đọc được
 - [ ] CORS cho presigned PUT từ domain admin
+- [ ] Lifecycle rule hết hạn object `products/*/tmp/` (upload bỏ dở, ADR-0010)
 - [ ] SPA fallback về `index.html`
 
 ### FLS-050 · Deploy backend + dữ liệu lên AWS

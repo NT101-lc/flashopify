@@ -28,5 +28,8 @@ public interface AddressMapper {
 
   Address findNewestByUser(@Param("userId") long userId);
 
+  /** Inserts all addresses in one statement; ids are not filled. */
+  int insertBatch(@Param("addresses") List<Address> addresses);
+
   int deleteAllByUser(@Param("userId") long userId);
 }

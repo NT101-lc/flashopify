@@ -2,6 +2,14 @@
 # @DynamicPropertySource. Redis/Kafka clients connect lazily, so tests that do not use them need
 # no broker; the Redis health check is off for the same reason.
 app:
+  storage:
+    bucket: test-bucket
+    region: us-east-1
+    endpoint: http://localhost:9
+    path-style-access: true
+    access-key: test
+    secret-key: test
+    public-base-url: http://localhost:9/test-bucket
   security:
     jwt:
       secret: test-only-secret-key-for-automated-tests-0123456789
