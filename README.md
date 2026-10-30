@@ -19,6 +19,16 @@ cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 cd frontend && npm install && npm run dev
 ```
 
+Stop / reset the infra:
+
+```bash
+# Stop containers, keep data
+docker compose -f infra/docker/docker-compose.yml down
+
+# Stop and wipe volumes. WARNING: deletes ALL MySQL, MinIO, PostgreSQL (and Redis/Kafka) data, including seed data
+docker compose -f infra/docker/docker-compose.yml down -v
+```
+
 Defaults for ports and credentials live in `infra/docker/docker-compose.yml`; override them with
 `infra/docker/.env`. Health check: http://localhost:8080/actuator/health.
 

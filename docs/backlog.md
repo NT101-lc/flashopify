@@ -22,17 +22,17 @@ Label: `backend` · `frontend` · `infra` · `docs` · `test`. Ước lượng: 
 **Label:** infra · **Ước lượng:** 1d · **Phụ thuộc:** — · **Liên kết:** SRS 2.3, OR-04, 6.2
 Một lệnh `docker compose up` chạy đủ hạ tầng local: MySQL 8, Redis 7, Kafka (KRaft), MinIO, PostgreSQL 16 + pgvector, Mailhog. Có healthcheck cho từng service.
 - [x] `infra/docker/compose.yaml` có đủ 6 service, healthcheck đều xanh _(file thực tế: `docker-compose.yml`, thêm kafka-ui)_
-- [ ] MinIO tự tạo bucket `flashopify`; Postgres bật extension `vector`
+- [x] MinIO tự tạo bucket `flashopify-media`; Postgres bật extension `vector`
 - [x] `.env.example` bổ sung biến còn thiếu; không commit `.env` _(`infra/docker/.env.example`)_
-- [ ] README ghi lệnh khởi động/dừng/xoá volume
+- [x] README ghi lệnh khởi động/dừng/xoá volume
 
 ### FLS-002 · Skeleton Spring Boot modular monolith
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-001 · **Liên kết:** HNFR-03, HNFR-05, OR-09, ADR-0001
 Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/service/mapper/domain/dto`), profile `local/test/prod`, Actuator, springdoc phục vụ `docs/api/openapi.yaml`.
 - [x] `./mvnw verify` chạy xanh; app khởi động với profile `local`
 - [x] `/actuator/health` trả UP (MySQL, Redis)
-- [ ] ArchUnit test: module không truy cập `mapper` của module khác
-- [ ] Swagger UI hiển thị spec
+- [x] ArchUnit test: module không truy cập `mapper` của module khác
+- [x] Swagger UI hiển thị spec _(spec tự sinh từ controller, springdoc)_
 
 ### FLS-003 · Flyway baseline + cấu hình MyBatis
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-002 · **Liên kết:** OR-04, ADR-0004, ADR-0005
@@ -47,7 +47,7 @@ Tạo project Maven Java 17 / Spring Boot 3 với 9 package module (`controller/
 - [x] Lỗi Bean Validation → 400 `VALIDATION_ERROR` có `fieldErrors`
 - [x] `BusinessException(ErrorCode)` map đúng HTTP status
 - [x] Mọi response có header `X-Trace-Id`; log có traceId, không log mật khẩu/token
-- [ ] Unit test cho advice
+- [x] Unit test cho advice
 
 ### FLS-005 · Đăng ký + đăng nhập JWT + khoá tài khoản
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-003, FLS-004 · **Liên kết:** HFR-01, UC-01, UC-02, SEC-01, SEC-05, TC-10, ADR-0007

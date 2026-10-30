@@ -31,6 +31,7 @@
     <checkstyle.version>12.3.1</checkstyle.version>
     <!-- AWS SDK v2: S3 client + presigner for MinIO and S3 (ADR-0010). -->
     <aws-sdk.version>2.55.11</aws-sdk.version>
+    <archunit.version>1.4.1</archunit.version>
   </properties>
 
   <dependencyManagement>
@@ -147,6 +148,12 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>${archunit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
