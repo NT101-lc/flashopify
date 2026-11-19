@@ -2,6 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.flashopify.flashsale.mapper.FlashSaleItemMapper">
 
+  <sql id="columns">id, campaign_id, product_id, sale_price, total_stock, sold, limit_per_user</sql>
+
   <!-- Locking read (FOR SHARE): the caller already holds the product row lock. -->
   <select id="existsInActiveCampaign" resultType="java.lang.Integer">
     SELECT 1
@@ -11,4 +13,32 @@
     LIMIT 1
     FOR SHARE
   </select>
+
+  <select id="findByCampaignId" resultType="com.flashopify.flashsale.domain.CampaignItem">
+    SELECT <include refid="columns"/> FROM flash_sale_items
+    WHERE campaign_id = #{campaignId}
+    ORDER BY product_id
+  </select>
+
+  <select id="lockByCampaignId" resultType="com.flashopify.flashsale.domain.CampaignItem">
+    SELECT <include refid="columns"/> FROM flash_sale_items
+    WHERE campaign_id = #{campaignId}
+    ORDER BY product_id
+    FOR UPDATE
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO flash_sale_items (campaign_id, product_id, sale_price, total_stock, limit_per_user)
+    VALUES (#{campaignId}, #{productId}, #{salePrice}, #{totalStock}, #{limitPerUser})
+  </insert>
+
+  <update id="update">
+    UPDATE flash_sale_items
+    SET sale_price = #{salePrice}, total_stock = #{totalStock}, limit_per_user = #{limitPerUser}
+    WHERE id = #{id}
+  </update>
+
+  <delete id="deleteById">
+    DELETE FROM flash_sale_items WHERE id = #{id}
+  </delete>
 </mapper>

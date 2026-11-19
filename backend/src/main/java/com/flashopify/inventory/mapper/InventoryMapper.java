@@ -28,4 +28,16 @@ public interface InventoryMapper {
       @Param("productId") long productId,
       @Param("quantity") int quantity,
       @Param("expectedVersion") int expectedVersion);
+
+  /**
+   * Guarded reservation: {@code reserved += amount} only while {@code reserved + amount <=
+   * quantity}. Bumps the version. Returns affected rows (0 or 1).
+   */
+  int reserve(@Param("productId") long productId, @Param("amount") int amount);
+
+  /**
+   * Guarded release: {@code reserved -= amount} only while {@code reserved >= amount}. Bumps the
+   * version. Returns affected rows (0 or 1).
+   */
+  int release(@Param("productId") long productId, @Param("amount") int amount);
 }

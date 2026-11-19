@@ -37,6 +37,10 @@ app:
     cache:
       detail-ttl: 10m
 
+  # Stock is loaded into Redis this long before startTime; campaigns are read-only from then on.
+  flash-sale:
+    warm-up-lead: 5m
+
   # MinIO vs S3 is configuration only: set endpoint (+ path-style) for MinIO, leave blank for S3.
   storage:
     bucket: ${STORAGE_BUCKET:}

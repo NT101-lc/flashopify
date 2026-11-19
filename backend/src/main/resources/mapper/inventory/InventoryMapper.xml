@@ -30,4 +30,18 @@
       AND version = #{expectedVersion}
       AND reserved &lt;= #{quantity}
   </update>
+
+  <update id="reserve">
+    UPDATE inventory
+    SET reserved = reserved + #{amount}, version = version + 1
+    WHERE product_id = #{productId}
+      AND reserved + #{amount} &lt;= quantity
+  </update>
+
+  <update id="release">
+    UPDATE inventory
+    SET reserved = reserved - #{amount}, version = version + 1
+    WHERE product_id = #{productId}
+      AND reserved &gt;= #{amount}
+  </update>
 </mapper>

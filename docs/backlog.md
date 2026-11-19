@@ -134,11 +134,11 @@ Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, 
 ### FLS-015 · Admin quản lý chiến dịch flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-009 · **Liên kết:** HFR-04, UC-09
 CRUD `/admin/flash-sales`: validate giờ, số lượng ≤ tồn kho khả dụng, giữ kho (`reserved`), huỷ chiến dịch hoàn kho.
-- [ ] `startTime` quá khứ / `end ≤ start` → 400 kèm `fieldErrors`
-- [ ] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
-- [ ] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
-- [ ] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
-- [ ] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
+- [x] `startTime` quá khứ / `end ≤ start` → 400 kèm `fieldErrors`
+- [x] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
+- [x] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
+- [x] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
+- [x] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
 
 ### FLS-016 · Warm-up Redis và vòng đời chiến dịch
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-015 · **Liên kết:** UC-09, HFR-04, ADR-0002

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.flashopify.flashsale.mapper.CampaignMapper">
+
+  <sql id="columns">c.id, c.name, c.start_time, c.end_time, c.status, c.created_by, c.created_at</sql>
+
+  <!-- Aggregates via correlated subqueries on uk_fs_items_campaign_product (campaign_id prefix),
+       evaluated only for the rows returned. -->
+  <sql id="aggregates">
+    (SELECT COUNT(*) FROM flash_sale_items i WHERE i.campaign_id = c.id) AS item_count,
+    (SELECT COALESCE(SUM(i.total_stock), 0) FROM flash_sale_items i WHERE i.campaign_id = c.id)
+      AS total_stock
+  </sql>
+
+  <sql id="filters">
+    FROM flash_sale_campaigns c
+    <where>
+      <if test="c.status != null">c.status = #{c.status}</if>
+    </where>
+  </sql>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO flash_sale_campaigns (name, start_time, end_time, status, created_by)
+    VALUES (#{name}, #{startTime}, #{endTime}, 'SCHEDULED', #{createdBy})
+  </insert>
+
+  <select id="findSummaryById" resultType="com.flashopify.flashsale.domain.Campaign">
+    SELECT <include refid="columns"/>, <include refid="aggregates"/>
+    FROM flash_sale_campaigns c WHERE c.id = #{id}
+  </select>
+
+  <select id="lockById" resultType="com.flashopify.flashsale.domain.Campaign">
+    SELECT <include refid="columns"/> FROM flash_sale_campaigns c WHERE c.id = #{id} FOR UPDATE
+  </select>
+
+  <update id="updateHeader">
+    UPDATE flash_sale_campaigns
+    SET name = #{name}, start_time = #{startTime}, end_time = #{endTime}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE flash_sale_campaigns SET status = #{status} WHERE id = #{id}
+  </update>
+
+  <select id="search" resultType="com.flashopify.flashsale.domain.Campaign">
+    SELECT <include refid="columns"/>, <include refid="aggregates"/>
+    <include refid="filters"/>
+    ORDER BY
+    <choose>
+      <when test="c.sort.name() == 'START_TIME_ASC'">c.start_time ASC, c.id ASC</when>
+      <when test="c.sort.name() == 'CREATED_AT_DESC'">c.created_at DESC, c.id DESC</when>
+      <otherwise>c.start_time DESC, c.id DESC</otherwise>
+    </choose>
+    LIMIT #{c.limit} OFFSET #{c.offset}
+  </select>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) <include refid="filters"/>
+  </select>
+</mapper>
