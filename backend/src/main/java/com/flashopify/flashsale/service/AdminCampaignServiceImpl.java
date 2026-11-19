@@ -49,6 +49,7 @@ public class AdminCampaignServiceImpl implements AdminCampaignService {
   private final FlashSaleItemMapper itemMapper;
   private final ProductQueryService productQueryService;
   private final InventoryService inventoryService;
+  private final CampaignSettlement settlement;
   private final FlashSaleProperties properties;
   private final Clock clock;
 
@@ -177,22 +178,20 @@ public class AdminCampaignServiceImpl implements AdminCampaignService {
           ErrorCode.CAMPAIGN_NOT_EDITABLE, "Campaign is already " + campaign.getStatus());
     }
     List<CampaignItem> items = lockItems(campaignId, lockIds);
-    campaignMapper.updateStatus(campaignId, CampaignStatus.CANCELLED);
-    for (CampaignItem item : items) {
-      // TODO(FLS-016): for a RUNNING campaign, `sold` lives in Redis until the end-of-campaign
-      // sync; drain the Redis stock atomically and release that amount instead.
-      int unsold = item.getTotalStock() - item.getSold();
-      if (unsold > 0) {
-        inventoryService.release(item.getProductId(), unsold);
-      }
-    }
+    // Freezes the Redis stock of a warmed-up campaign, records sold and releases the rest.
+    settlement.close(campaign, items, CampaignStatus.CANCELLED);
     return AdminCampaignSummaryResponse.from(campaignMapper.findSummaryById(campaignId));
   }
 
-  /** SCHEDULED and strictly before the warm-up moment ({@code startTime - warmUpLead}). */
+  /**
+   * SCHEDULED, not warmed up and strictly before the warm-up moment ({@code startTime -
+   * warmUpLead}).
+   */
   boolean isEditable(Campaign campaign) {
     Instant warmUpAt = campaign.getStartTime().minus(properties.warmUpLead());
-    return campaign.getStatus() == CampaignStatus.SCHEDULED && clock.instant().isBefore(warmUpAt);
+    return campaign.getStatus() == CampaignStatus.SCHEDULED
+        && campaign.getWarmedUpAt() == null
+        && clock.instant().isBefore(warmUpAt);
   }
 
   private Campaign lockCampaign(long campaignId) {
@@ -270,7 +269,7 @@ public class AdminCampaignServiceImpl implements AdminCampaignService {
   }
 
   private static AdminCampaignItemResponse toResponse(CampaignItem i, ProductSnapshot p) {
-    // TODO(FLS-016): overlay the live Redis stock once the campaign is warmed up.
+    // TODO(FLS-021): overlay the live Redis stock while the campaign is warmed up and open.
     int remaining = i.getTotalStock() - i.getSold();
     return new AdminCampaignItemResponse(
         i.getId(),

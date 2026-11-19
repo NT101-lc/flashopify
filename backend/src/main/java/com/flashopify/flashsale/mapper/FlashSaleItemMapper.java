@@ -27,5 +27,7 @@ public interface FlashSaleItemMapper {
   /** Updates sale price, total stock and limit per user. */
   int update(CampaignItem item);
 
+  int updateSold(@Param("id") long id, @Param("sold") int sold);
+
   int deleteById(@Param("id") long id);
 }

@@ -21,6 +21,10 @@ public class Campaign {
   private Instant startTime;
   private Instant endTime;
   private CampaignStatus status;
+
+  /** When the stock was loaded into Redis; null until warm-up. */
+  private Instant warmedUpAt;
+
   private Long createdBy;
   private Instant createdAt;
   private int itemCount;

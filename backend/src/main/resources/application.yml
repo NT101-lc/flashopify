@@ -40,6 +40,11 @@ app:
   # Stock is loaded into Redis this long before startTime; campaigns are read-only from then on.
   flash-sale:
     warm-up-lead: 5m
+    key-retention: 1d
+    scheduler-batch-size: 50
+    scheduler:
+      enabled: true
+      interval-ms: 5000
 
   # MinIO vs S3 is configuration only: set endpoint (+ path-style) for MinIO, leave blank for S3.
   storage:

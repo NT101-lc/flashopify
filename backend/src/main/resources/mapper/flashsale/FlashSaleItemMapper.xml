@@ -38,6 +38,10 @@
     WHERE id = #{id}
   </update>
 
+  <update id="updateSold">
+    UPDATE flash_sale_items SET sold = #{sold} WHERE id = #{id}
+  </update>
+
   <delete id="deleteById">
     DELETE FROM flash_sale_items WHERE id = #{id}
   </delete>

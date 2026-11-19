@@ -41,8 +41,9 @@ public interface AdminCampaignService {
   AdminCampaignDetailResponse update(long campaignId, CampaignUpsertRequest request);
 
   /**
-   * Cancels a SCHEDULED or RUNNING campaign and releases each item's unsold stock ({@code
-   * totalStock - sold}).
+   * Cancels a SCHEDULED or RUNNING campaign. A warmed-up campaign is deactivated in Redis first;
+   * its frozen stock gives {@code sold}, and the unsold stock ({@code totalStock - sold}) is
+   * released.
    *
    * @throws com.flashopify.common.exception.BusinessException CAMPAIGN_NOT_FOUND or
    *     CAMPAIGN_NOT_EDITABLE (already ENDED or CANCELLED)

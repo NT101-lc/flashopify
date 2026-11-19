@@ -143,11 +143,11 @@ CRUD `/admin/flash-sales`: validate giờ, số lượng ≤ tồn kho khả d�
 ### FLS-016 · Warm-up Redis và vòng đời chiến dịch
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-015 · **Liên kết:** UC-09, HFR-04, ADR-0002
 Scheduler nạp `fs:stock:{itemId}`, giờ mở/đóng, limit vào Redis trước 5 phút; chuyển SCHEDULED → RUNNING → ENDED; đồng bộ `sold` sau chiến dịch.
-- [ ] Key dùng hash tag `{itemId}`
-- [ ] Warm-up chạy lại không ghi đè kho đang bán
-- [ ] Hết giờ: status ENDED, ghi `sold` về MySQL
-- [ ] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
-- [ ] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
+- [x] Key dùng hash tag `{itemId}`
+- [x] Warm-up chạy lại không ghi đè kho đang bán
+- [x] Hết giờ: status ENDED, ghi `sold` về MySQL
+- [x] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
+- [x] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
 
 ### FLS-017 · Lua script trừ kho flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-016 · **Liên kết:** HNFR-02, UC-05, TC-01, TC-02, TC-04, ADR-0002

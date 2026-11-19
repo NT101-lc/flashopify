@@ -2,7 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.flashopify.flashsale.mapper.CampaignMapper">
 
-  <sql id="columns">c.id, c.name, c.start_time, c.end_time, c.status, c.created_by, c.created_at</sql>
+  <sql id="columns">
+    c.id, c.name, c.start_time, c.end_time, c.status, c.warmed_up_at, c.created_by, c.created_at
+  </sql>
 
   <!-- Aggregates via correlated subqueries on uk_fs_items_campaign_product (campaign_id prefix),
        evaluated only for the rows returned. -->
@@ -32,6 +34,40 @@
   <select id="lockById" resultType="com.flashopify.flashsale.domain.Campaign">
     SELECT <include refid="columns"/> FROM flash_sale_campaigns c WHERE c.id = #{id} FOR UPDATE
   </select>
+
+  <select id="lockByIdSkipLocked" resultType="com.flashopify.flashsale.domain.Campaign">
+    SELECT <include refid="columns"/> FROM flash_sale_campaigns c
+    WHERE c.id = #{id}
+    FOR UPDATE SKIP LOCKED
+  </select>
+
+  <!-- Lifecycle candidates: plain reads; each campaign is then re-checked under its row lock. -->
+  <select id="findIdsDueForWarmUp" resultType="long">
+    SELECT id FROM flash_sale_campaigns
+    WHERE status = 'SCHEDULED' AND warmed_up_at IS NULL
+      AND start_time &lt;= #{until} AND end_time &gt; #{now}
+    ORDER BY start_time
+    LIMIT #{limit}
+  </select>
+
+  <select id="findIdsDueForStart" resultType="long">
+    SELECT id FROM flash_sale_campaigns
+    WHERE status = 'SCHEDULED' AND warmed_up_at IS NOT NULL
+      AND start_time &lt;= #{now} AND end_time &gt; #{now}
+    ORDER BY start_time
+    LIMIT #{limit}
+  </select>
+
+  <select id="findIdsDueForEnd" resultType="long">
+    SELECT id FROM flash_sale_campaigns
+    WHERE status IN ('SCHEDULED', 'RUNNING') AND end_time &lt;= #{now}
+    ORDER BY end_time
+    LIMIT #{limit}
+  </select>
+
+  <update id="markWarmedUp">
+    UPDATE flash_sale_campaigns SET warmed_up_at = #{at} WHERE id = #{id}
+  </update>
 
   <update id="updateHeader">
     UPDATE flash_sale_campaigns

@@ -56,6 +56,7 @@ class AdminCampaignServiceImplTest {
   @Mock FlashSaleItemMapper itemMapper;
   @Mock ProductQueryService productQueryService;
   @Mock InventoryService inventoryService;
+  @Mock CampaignSettlement settlement;
 
   private AdminCampaignServiceImpl service;
 
@@ -67,6 +68,7 @@ class AdminCampaignServiceImplTest {
             itemMapper,
             productQueryService,
             inventoryService,
+            settlement,
             new FlashSaleProperties(Duration.ofMinutes(5)),
             Clock.fixed(NOW, ZoneOffset.UTC));
   }
@@ -239,6 +241,9 @@ class AdminCampaignServiceImplTest {
     assertThat(service.isEditable(campaign(CampaignStatus.SCHEDULED, NOW.plus(lead)))).isFalse();
     assertThat(service.isEditable(campaign(CampaignStatus.RUNNING, START))).isFalse();
     assertThat(service.isEditable(campaign(CampaignStatus.CANCELLED, START))).isFalse();
+    Campaign warmed = campaign(CampaignStatus.SCHEDULED, START);
+    warmed.setWarmedUpAt(NOW);
+    assertThat(service.isEditable(warmed)).isFalse();
   }
 
   @Test
@@ -326,21 +331,21 @@ class AdminCampaignServiceImplTest {
   }
 
   @Test
-  void cancelReleasesOnlyUnsoldStock() {
+  void cancelLocksInOrderThenSettlesTheLockedItems() {
     List<CampaignItem> items = List.of(existing(11, 1, 10, 3), existing(12, 2, 4, 4));
+    Campaign running = campaign(CampaignStatus.RUNNING, START);
     when(itemMapper.findByCampaignId(CAMPAIGN_ID)).thenReturn(items);
-    when(campaignMapper.lockById(CAMPAIGN_ID)).thenReturn(campaign(CampaignStatus.RUNNING, START));
+    when(campaignMapper.lockById(CAMPAIGN_ID)).thenReturn(running);
     when(itemMapper.lockByCampaignId(CAMPAIGN_ID)).thenReturn(items);
     stubDetail();
 
     service.cancel(CAMPAIGN_ID);
 
-    InOrder order = inOrder(productQueryService, campaignMapper, inventoryService);
+    InOrder order = inOrder(productQueryService, campaignMapper, itemMapper, settlement);
     order.verify(productQueryService).lockForShare(Set.of(1L, 2L));
     order.verify(campaignMapper).lockById(CAMPAIGN_ID);
-    order.verify(campaignMapper).updateStatus(CAMPAIGN_ID, CampaignStatus.CANCELLED);
-    order.verify(inventoryService).release(1L, 7);
-    verify(inventoryService, never()).release(2L, 0);
+    order.verify(itemMapper).lockByCampaignId(CAMPAIGN_ID);
+    order.verify(settlement).close(running, items, CampaignStatus.CANCELLED);
   }
 
   // ---- list / get ----

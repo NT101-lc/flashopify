@@ -3,6 +3,7 @@ package com.flashopify.flashsale.mapper;
 import com.flashopify.flashsale.domain.Campaign;
 import com.flashopify.flashsale.domain.CampaignSearchCriteria;
 import com.flashopify.flashsale.domain.CampaignStatus;
+import java.time.Instant;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -19,6 +20,24 @@ public interface CampaignMapper {
 
   /** {@code SELECT ... FOR UPDATE} on the campaign row only (no aggregates). */
   Campaign lockById(@Param("id") long id);
+
+  /**
+   * {@code SELECT ... FOR UPDATE SKIP LOCKED}: null when absent or locked by another transaction,
+   * so concurrent schedulers never handle the same campaign twice.
+   */
+  Campaign lockByIdSkipLocked(@Param("id") long id);
+
+  /** SCHEDULED, not warmed up, starting at or before {@code until} and not yet over. */
+  List<Long> findIdsDueForWarmUp(
+      @Param("until") Instant until, @Param("now") Instant now, @Param("limit") int limit);
+
+  /** SCHEDULED, warmed up, started and not yet over. */
+  List<Long> findIdsDueForStart(@Param("now") Instant now, @Param("limit") int limit);
+
+  /** SCHEDULED or RUNNING whose end time has passed. */
+  List<Long> findIdsDueForEnd(@Param("now") Instant now, @Param("limit") int limit);
+
+  int markWarmedUp(@Param("id") long id, @Param("at") Instant at);
 
   /** Updates name and time window. */
   int updateHeader(Campaign campaign);
