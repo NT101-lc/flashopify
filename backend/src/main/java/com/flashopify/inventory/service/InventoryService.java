@@ -36,4 +36,21 @@ public interface InventoryService {
    *     CONCURRENT_MODIFICATION (stale version) or INSUFFICIENT_STOCK (below reserved)
    */
   InventoryView updateQuantity(long productId, int quantity, int expectedVersion);
+
+  /**
+   * Adds {@code amount} to {@code reserved} if {@code reserved + amount <= quantity}. Must join the
+   * caller's transaction, and the caller must already hold the product row lock.
+   *
+   * @throws com.flashopify.common.exception.BusinessException INSUFFICIENT_STOCK when the available
+   *     stock (or the inventory row) is missing
+   */
+  void reserve(long productId, int amount);
+
+  /**
+   * Subtracts {@code amount} from {@code reserved}. Must join the caller's transaction.
+   *
+   * @throws IllegalStateException when fewer than {@code amount} units are reserved (an invariant
+   *     violation, never an expected business outcome)
+   */
+  void release(long productId, int amount);
 }

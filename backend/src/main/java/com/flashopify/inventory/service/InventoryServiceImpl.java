@@ -73,6 +73,37 @@ public class InventoryServiceImpl implements InventoryService {
     return toView(inventoryMapper.findByProductId(productId));
   }
 
+  @Override
+  @Transactional
+  public void reserve(long productId, int amount) {
+    requirePositive(amount);
+    if (inventoryMapper.reserve(productId, amount) == 1) {
+      return;
+    }
+    Inventory current = inventoryMapper.findByProductIdForShare(productId);
+    int available =
+        current == null ? 0 : Math.max(0, current.getQuantity() - current.getReserved());
+    throw new BusinessException(
+        ErrorCode.INSUFFICIENT_STOCK,
+        "Product " + productId + " has only " + available + " units available");
+  }
+
+  @Override
+  @Transactional
+  public void release(long productId, int amount) {
+    requirePositive(amount);
+    if (inventoryMapper.release(productId, amount) != 1) {
+      throw new IllegalStateException(
+          "Cannot release " + amount + " units of product " + productId + ": not reserved");
+    }
+  }
+
+  private static void requirePositive(int amount) {
+    if (amount <= 0) {
+      throw new IllegalArgumentException("amount must be positive: " + amount);
+    }
+  }
+
   private static InventoryView toView(Inventory inv) {
     return InventoryView.of(inv.getQuantity(), inv.getReserved(), inv.getVersion());
   }

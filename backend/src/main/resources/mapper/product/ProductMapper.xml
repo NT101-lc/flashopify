@@ -102,6 +102,12 @@
     SELECT <include refid="adminColumns"/> FROM products p WHERE p.id = #{id} FOR SHARE
   </select>
 
+  <select id="findByIds" resultType="com.flashopify.product.domain.Product">
+    SELECT <include refid="adminColumns"/> FROM products p
+    WHERE p.id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+
   <update id="updateThumbnail">
     UPDATE products SET thumbnail_url = #{url} WHERE id = #{id}
   </update>

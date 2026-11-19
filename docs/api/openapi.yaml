@@ -1988,8 +1988,25 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: A product in `items` does not exist (`PRODUCT_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
-          $ref: '#/components/responses/InsufficientStock'
+          description: |
+            `INSUFFICIENT_STOCK` (an item's `totalStock` exceeds the product's available stock) or
+            `PRODUCT_NOT_AVAILABLE` (product is not ACTIVE). Nothing is created or reserved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INSUFFICIENT_STOCK
+                message: Product 101 has only 94 units available
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T10:00:00Z'
 
   /admin/flash-sales/{campaignId}:
     parameters:
@@ -2038,7 +2055,10 @@ paths:
       tags: [admin-flash-sales]
       operationId: adminUpdateFlashSale
       summary: Update a SCHEDULED campaign
-      description: Only allowed before warm-up (more than 5 minutes before start); otherwise `CAMPAIGN_NOT_EDITABLE`.
+      description: |
+        Only allowed while SCHEDULED and before warm-up (more than 5 minutes before start); otherwise
+        `CAMPAIGN_NOT_EDITABLE`. Replaces name, window and items with the same rules as create;
+        reservations are adjusted by the difference and items of kept products keep their id.
       x-roles: [ADMIN]
       requestBody:
         required: true
@@ -2091,9 +2111,24 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Campaign or a product in `items` not found (`CAMPAIGN_NOT_FOUND`, `PRODUCT_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
-          $ref: '#/components/responses/CampaignNotEditable'
+          description: |
+            `CAMPAIGN_NOT_EDITABLE`, `INSUFFICIENT_STOCK`, `PRODUCT_NOT_AVAILABLE`, or
+            `CONCURRENT_MODIFICATION` when the campaign changed during the request (retry).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: CAMPAIGN_NOT_EDITABLE
+                message: Campaign is warmed up, running or closed
+                traceId: a1b2c3d4
+                timestamp: '2026-10-27T08:00:00Z'
 
   /admin/flash-sales/{campaignId}/cancel:
     post:

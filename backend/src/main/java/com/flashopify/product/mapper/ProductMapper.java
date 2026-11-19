@@ -41,6 +41,9 @@ public interface ProductMapper {
   /** {@code SELECT ... FOR SHARE} on the product row only; any status. */
   Product lockByIdShared(@Param("id") long id);
 
+  /** Any status, no joins, no lock; ids must not be empty. */
+  List<Product> findByIds(@Param("ids") Collection<Long> ids);
+
   /** Sets (or clears with null) the thumbnail URL. */
   int updateThumbnail(@Param("id") long id, @Param("url") String url);
 

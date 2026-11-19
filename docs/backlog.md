@@ -134,43 +134,43 @@ Workflow mỗi PR: backend `mvn verify` (Testcontainers), frontend lint + test, 
 ### FLS-015 · Admin quản lý chiến dịch flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-009 · **Liên kết:** HFR-04, UC-09
 CRUD `/admin/flash-sales`: validate giờ, số lượng ≤ tồn kho khả dụng, giữ kho (`reserved`), huỷ chiến dịch hoàn kho.
-- [ ] `startTime` quá khứ / `end ≤ start` → 400 kèm `fieldErrors`
-- [ ] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
-- [ ] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
-- [ ] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
-- [ ] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
+- [x] `startTime` quá khứ / `end ≤ start` → 400 kèm `fieldErrors`
+- [x] Vượt tồn kho → 409 `INSUFFICIENT_STOCK`
+- [x] Sửa sau warm-up → 409 `CAMPAIGN_NOT_EDITABLE`
+- [x] Huỷ: status CANCELLED, trả `reserved` phần chưa bán
+- [x] Khoá: luôn khoá hàng `products` trước (`FOR SHARE`), rồi mới `inventory`; khi tạo chiến dịch/thêm item phải khoá `FOR SHARE` từng product và từ chối sản phẩm không ACTIVE (`isProductInActiveCampaign` không tự khoá); đổi status chiến dịch không cần khoá product; giao dịch có thể ghi hàng `products` phải lấy `FOR UPDATE` ngay từ đầu, không bao giờ nâng `FOR SHARE` lên `FOR UPDATE`
 
 ### FLS-016 · Warm-up Redis và vòng đời chiến dịch
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-015 · **Liên kết:** UC-09, HFR-04, ADR-0002
 Scheduler nạp `fs:stock:{itemId}`, giờ mở/đóng, limit vào Redis trước 5 phút; chuyển SCHEDULED → RUNNING → ENDED; đồng bộ `sold` sau chiến dịch.
-- [ ] Key dùng hash tag `{itemId}`
-- [ ] Warm-up chạy lại không ghi đè kho đang bán
-- [ ] Hết giờ: status ENDED, ghi `sold` về MySQL
-- [ ] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
-- [ ] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
+- [x] Key dùng hash tag `{itemId}`
+- [x] Warm-up chạy lại không ghi đè kho đang bán
+- [x] Hết giờ: status ENDED, ghi `sold` về MySQL
+- [x] Chạy an toàn khi có nhiều instance (lock lịch / SKIP LOCKED)
+- [x] Thứ tự khoá `products → flash_sale_campaigns/flash_sale_items → inventory`: giao dịch ghi campaign/item mà còn đụng products/inventory (vd. đồng bộ `sold` + trả `reserved` khi ENDED) phải khoá `products FOR SHARE` (theo id tăng dần) trước lần ghi campaign/item đầu tiên, hoặc tách thành giao dịch riêng; có retry khi deadlock
 
 ### FLS-017 · Lua script trừ kho flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-016 · **Liên kết:** HNFR-02, UC-05, TC-01, TC-02, TC-04, ADR-0002
 Script atomic kiểm tra giờ → limit user → tồn kho → trừ kho + tăng `bought`; script hoàn kho ngược lại.
-- [ ] Trả `OK | SOLD_OUT | LIMIT_EXCEEDED | NOT_ACTIVE`
-- [ ] Test đồng thời 1.000 thread / 100 kho → đúng 100 OK (TC-01)
-- [ ] 5 request cùng user với limit 1 → 1 OK (TC-02)
-- [ ] Hoàn kho không làm kho vượt `totalStock`
+- [x] Trả `OK | SOLD_OUT | LIMIT_EXCEEDED | NOT_ACTIVE`
+- [x] Test đồng thời 1.000 thread / 100 kho → đúng 100 OK (TC-01)
+- [x] 5 request cùng user với limit 1 → 1 OK (TC-02)
+- [x] Hoàn kho không làm kho vượt `totalStock`
 
 ### FLS-018 · Hạ tầng Idempotency-Key
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-004 · **Liên kết:** SRS 6.4, TC-03
 Annotation `@Idempotent` lưu Redis (userId + key → hash body, trạng thái, response), TTL 24h.
-- [ ] Thiếu header → 400 `IDEMPOTENCY_KEY_MISSING`
-- [ ] Gửi lại cùng key → trả lại response cũ + `Idempotent-Replayed: true`
-- [ ] Cùng key khác body → 409 `IDEMPOTENCY_KEY_CONFLICT`; đang xử lý → 409 `REQUEST_IN_PROGRESS`
-- [ ] Unit test cho cả 4 trường hợp
+- [x] Thiếu header → 400 `IDEMPOTENCY_KEY_MISSING`
+- [x] Gửi lại cùng key → trả lại response cũ + `Idempotent-Replayed: true`
+- [x] Cùng key khác body → 409 `IDEMPOTENCY_KEY_CONFLICT`; đang xử lý → 409 `REQUEST_IN_PROGRESS`
+- [x] Unit test cho cả 4 trường hợp
 
 ### FLS-019 · Rate limit theo user và IP
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-004 · **Liên kết:** SEC-06
 Token bucket trên Redis (Lua) cấu hình theo endpoint: login, purchase, AI chat.
-- [ ] Vượt ngưỡng → 429 `RATE_LIMITED` + `Retry-After`
-- [ ] Ngưỡng đổi qua cấu hình, không cần sửa code
-- [ ] Test với Testcontainers Redis
+- [x] Vượt ngưỡng → 429 `RATE_LIMITED` + `Retry-After`
+- [x] Ngưỡng đổi qua cấu hình, không cần sửa code
+- [x] Test với Testcontainers Redis
 
 ### FLS-020 · API mua flash-sale (202 + Kafka)
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-017, FLS-018, FLS-019 · **Liên kết:** UC-05, HFR-04, TC-03, TC-04
