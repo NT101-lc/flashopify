@@ -6,6 +6,18 @@ app:
   flash-sale:
     scheduler:
       enabled: false
+  # Every test shares 127.0.0.1 and one Redis: keep login effectively unlimited; the probe
+  # policies exercise the limiter itself (RateLimitIT).
+  rate-limit:
+    policies:
+      login:
+        ip: { capacity: 1000, refill-period: 60s }
+      test-probe:
+        user: { capacity: 3, refill-period: 1h }
+        ip: { capacity: 5, refill-period: 1h }
+      test-refill:
+        ip: { capacity: 2, refill-period: 300ms }
+
   storage:
     bucket: test-bucket
     region: us-east-1

@@ -52,6 +52,20 @@ app:
     ttl: 24h
     processing-ttl: 60s
 
+  # Token buckets per policy (FLS-019, SEC-06): capacity = burst, refill-period = time to earn
+  # one token back. user buckets apply to authenticated calls only. Tune without code changes.
+  rate-limit:
+    enabled: true
+    policies:
+      login:
+        ip: { capacity: 10, refill-period: 6s }        # 10/min per IP
+      flash-sale-purchase:
+        user: { capacity: 5, refill-period: 1s }       # burst 5, then 1/s per user
+        ip: { capacity: 100, refill-period: 50ms }     # 20/s per IP (NAT, offices)
+      ai-chat:
+        user: { capacity: 10, refill-period: 6s }      # 10/min per user
+        ip: { capacity: 30, refill-period: 2s }        # 30/min per IP (guests included)
+
   # MinIO vs S3 is configuration only: set endpoint (+ path-style) for MinIO, leave blank for S3.
   storage:
     bucket: ${STORAGE_BUCKET:}

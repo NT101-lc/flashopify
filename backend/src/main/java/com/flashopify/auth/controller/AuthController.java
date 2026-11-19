@@ -6,6 +6,7 @@ import com.flashopify.auth.dto.RegisterRequest;
 import com.flashopify.auth.dto.TokenResponse;
 import com.flashopify.auth.dto.UserProfileResponse;
 import com.flashopify.auth.service.AuthService;
+import com.flashopify.common.ratelimit.RateLimited;
 import com.flashopify.common.security.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class AuthController {
     return authService.register(request);
   }
 
+  @RateLimited("login")
   @PostMapping("/login")
   public TokenResponse login(@Valid @RequestBody LoginRequest request) {
     return authService.login(request);

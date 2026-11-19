@@ -168,9 +168,9 @@ Annotation `@Idempotent` lưu Redis (userId + key → hash body, trạng thái, 
 ### FLS-019 · Rate limit theo user và IP
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-004 · **Liên kết:** SEC-06
 Token bucket trên Redis (Lua) cấu hình theo endpoint: login, purchase, AI chat.
-- [ ] Vượt ngưỡng → 429 `RATE_LIMITED` + `Retry-After`
-- [ ] Ngưỡng đổi qua cấu hình, không cần sửa code
-- [ ] Test với Testcontainers Redis
+- [x] Vượt ngưỡng → 429 `RATE_LIMITED` + `Retry-After`
+- [x] Ngưỡng đổi qua cấu hình, không cần sửa code
+- [x] Test với Testcontainers Redis
 
 ### FLS-020 · API mua flash-sale (202 + Kafka)
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-017, FLS-018, FLS-019 · **Liên kết:** UC-05, HFR-04, TC-03, TC-04

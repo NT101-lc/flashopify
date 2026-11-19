@@ -47,7 +47,7 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
  * </ul>
  *
  * <p>Responses below 500 are stored for the TTL (a business 4xx such as SOLD_OUT is a final answer
- * too). A 5xx or an exception releases the key so the client can retry it.
+ * too). A 5xx, a 429 or an exception releases the key so the client can retry it.
  */
 @Slf4j
 public class IdempotencyFilter extends OncePerRequestFilter {
@@ -151,7 +151,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     }
     int status = wrapper.getStatus();
     try {
-      if (status >= 500) {
+      if (status >= 500 || status == HttpStatus.TOO_MANY_REQUESTS.value()) {
         store.release(userId, key, token);
       } else {
         String body = new String(wrapper.getContentAsByteArray(), StandardCharsets.UTF_8);
