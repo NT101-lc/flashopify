@@ -160,10 +160,10 @@ Script atomic kiểm tra giờ → limit user → tồn kho → trừ kho + tăn
 ### FLS-018 · Hạ tầng Idempotency-Key
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-004 · **Liên kết:** SRS 6.4, TC-03
 Annotation `@Idempotent` lưu Redis (userId + key → hash body, trạng thái, response), TTL 24h.
-- [ ] Thiếu header → 400 `IDEMPOTENCY_KEY_MISSING`
-- [ ] Gửi lại cùng key → trả lại response cũ + `Idempotent-Replayed: true`
-- [ ] Cùng key khác body → 409 `IDEMPOTENCY_KEY_CONFLICT`; đang xử lý → 409 `REQUEST_IN_PROGRESS`
-- [ ] Unit test cho cả 4 trường hợp
+- [x] Thiếu header → 400 `IDEMPOTENCY_KEY_MISSING`
+- [x] Gửi lại cùng key → trả lại response cũ + `Idempotent-Replayed: true`
+- [x] Cùng key khác body → 409 `IDEMPOTENCY_KEY_CONFLICT`; đang xử lý → 409 `REQUEST_IN_PROGRESS`
+- [x] Unit test cho cả 4 trường hợp
 
 ### FLS-019 · Rate limit theo user và IP
 **Label:** backend · **Ước lượng:** 0.5d · **Phụ thuộc:** FLS-004 · **Liên kết:** SEC-06
