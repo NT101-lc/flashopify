@@ -152,10 +152,10 @@ Scheduler nạp `fs:stock:{itemId}`, giờ mở/đóng, limit vào Redis trướ
 ### FLS-017 · Lua script trừ kho flash-sale
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-016 · **Liên kết:** HNFR-02, UC-05, TC-01, TC-02, TC-04, ADR-0002
 Script atomic kiểm tra giờ → limit user → tồn kho → trừ kho + tăng `bought`; script hoàn kho ngược lại.
-- [ ] Trả `OK | SOLD_OUT | LIMIT_EXCEEDED | NOT_ACTIVE`
-- [ ] Test đồng thời 1.000 thread / 100 kho → đúng 100 OK (TC-01)
-- [ ] 5 request cùng user với limit 1 → 1 OK (TC-02)
-- [ ] Hoàn kho không làm kho vượt `totalStock`
+- [x] Trả `OK | SOLD_OUT | LIMIT_EXCEEDED | NOT_ACTIVE`
+- [x] Test đồng thời 1.000 thread / 100 kho → đúng 100 OK (TC-01)
+- [x] 5 request cùng user với limit 1 → 1 OK (TC-02)
+- [x] Hoàn kho không làm kho vượt `totalStock`
 
 ### FLS-018 · Hạ tầng Idempotency-Key
 **Label:** backend · **Ước lượng:** 1d · **Phụ thuộc:** FLS-004 · **Liên kết:** SRS 6.4, TC-03

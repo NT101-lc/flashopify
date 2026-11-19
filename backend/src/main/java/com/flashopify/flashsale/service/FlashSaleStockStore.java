@@ -14,10 +14,12 @@ import org.springframework.stereotype.Component;
  * keys ({@link FlashSaleKeys}), so it is atomic even with many app instances.
  */
 @Component
-public class FlashSaleStockStore {
+public class FlashSaleStockStore implements FlashSaleStockService {
 
   private static final RedisScript<Long> WARM_UP = script("warmup");
   private static final RedisScript<Long> DEACTIVATE = script("deactivate");
+  private static final RedisScript<String> PURCHASE = script("purchase", String.class);
+  private static final RedisScript<String> RESTORE = script("restore", String.class);
 
   private final StringRedisTemplate redis;
 
@@ -56,7 +58,34 @@ public class FlashSaleStockStore {
     return stock == null || stock < 0 ? OptionalInt.empty() : OptionalInt.of(stock.intValue());
   }
 
+  @Override
+  public PurchaseResult tryPurchase(long itemId, long userId, int quantity) {
+    return PurchaseResult.valueOf(run(PURCHASE, itemId, userId, quantity));
+  }
+
+  @Override
+  public RestoreResult restore(long itemId, long userId, int quantity) {
+    return RestoreResult.valueOf(run(RESTORE, itemId, userId, quantity));
+  }
+
+  private String run(RedisScript<String> script, long itemId, long userId, int quantity) {
+    if (quantity < 1) {
+      throw new IllegalArgumentException("quantity must be at least 1: " + quantity);
+    }
+    String code =
+        redis.execute(
+            script, FlashSaleKeys.all(itemId), String.valueOf(userId), String.valueOf(quantity));
+    if (code == null) {
+      throw new IllegalStateException("Flash-sale script returned no result for item " + itemId);
+    }
+    return code;
+  }
+
   static RedisScript<Long> script(String name) {
-    return RedisScript.of(new ClassPathResource("scripts/flashsale/" + name + ".lua"), Long.class);
+    return script(name, Long.class);
+  }
+
+  static <T> RedisScript<T> script(String name, Class<T> type) {
+    return RedisScript.of(new ClassPathResource("scripts/flashsale/" + name + ".lua"), type);
   }
 }
